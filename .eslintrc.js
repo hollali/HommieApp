@@ -1,0 +1,13 @@
+module.exports = {
+  extends: ['expo'],
+  ignorePatterns: [
+    'admin-dashboard/**',
+    'node_modules/**',
+    'metro.config.js',
+    'babel.config.js',
+    'patch-expo-*.js',
+    '*.ps1',
+    '*.bat',
+  ],
+};
+

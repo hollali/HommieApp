@@ -1,0 +1,15 @@
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+  <!-- H -->
+  <text x="0" y="45" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#FFFFFF">H</text>
+  
+  <!-- House-shaped O -->
+  <g transform="translate(50, 12)">
+    <!-- Triangular roof -->
+    <path d="M 12 0 L 0 10 L 24 10 Z" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Pentagonal/rectangular base -->
+    <path d="M 0 10 L 0 24 L 24 24 L 24 10" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- mmie -->
+  <text x="80" y="45" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#FFFFFF">mmie</text>
+</svg>

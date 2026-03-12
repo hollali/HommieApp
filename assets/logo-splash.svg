@@ -1,0 +1,18 @@
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background - Royal blue matching the logo design -->
+  <rect width="400" height="120" fill="#4560F7"/>
+  
+  <!-- H -->
+  <text x="40" y="90" font-family="Arial, sans-serif" font-size="96" font-weight="bold" fill="#FFFFFF">H</text>
+  
+  <!-- House-shaped O -->
+  <g transform="translate(140, 24)">
+    <!-- Triangular roof -->
+    <path d="M 24 0 L 0 20 L 48 20 Z" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Square/rectangular base -->
+    <path d="M 0 20 L 0 48 L 48 48 L 48 20" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  
+  <!-- mmie -->
+  <text x="200" y="90" font-family="Arial, sans-serif" font-size="96" font-weight="normal" fill="#FFFFFF">mmie</text>
+</svg>
