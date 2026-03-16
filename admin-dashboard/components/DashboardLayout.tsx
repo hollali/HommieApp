@@ -3,36 +3,20 @@
 import { Sidebar } from './Sidebar';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentAdmin } from '@/lib/mockData';
+import { useUser } from '@clerk/nextjs';
 import { AdminGuard } from './AdminGuard';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useUser();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = () => {
-      try {
-        const admin = getCurrentAdmin();
-        
-        if (!admin) {
-          router.push('/login');
-          return;
-        }
+    if (isLoaded && !isSignedIn) {
+      router.push('/login');
+    }
+  }, [isLoaded, isSignedIn, router]);
 
-        setLoading(false);
-      } catch (error) {
-        console.error('Auth check error:', error);
-        router.push('/login');
-      }
-    };
-
-    // Small delay to ensure localStorage is ready
-    const timer = setTimeout(checkAuth, 50);
-    return () => clearTimeout(timer);
-  }, [router]);
-
-  if (loading) {
+  if (!isLoaded || !isSignedIn) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -42,6 +26,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
 
   return (
     <AdminGuard>

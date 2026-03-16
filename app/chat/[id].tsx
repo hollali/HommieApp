@@ -29,18 +29,16 @@ export default function ChatScreen() {
 
   const { data: messages = [], isLoading: messagesLoading } = useQuery({
     queryKey: ['messages', chatId],
-    queryFn: () => getMessages(chatId),
-    enabled: !!chatId,
-    refetchInterval: 2000, // Poll for new messages
+    queryFn: () => messagingService.getMessages(user?.id || '', '', undefined, chatId),
+    enabled: !!chatId && !!user,
+    refetchInterval: 5000, // Poll less frequently when using Realtime
   });
 
   const { data: chat } = useQuery({
     queryKey: ['chat', chatId, user?.id],
     queryFn: async () => {
       if (!user) return null;
-      const { getChats } = await import('../../lib/mockData');
-      const chats = await getChats(user.id);
-      return chats.find((c) => c.id === chatId) || null;
+      return await messagingService.getConversationById(chatId);
     },
     enabled: !!user && !!chatId,
   });
@@ -50,7 +48,7 @@ export default function ChatScreen() {
     queryFn: async () => {
       if (!chat || !user) return null;
 
-      const otherUserId = chat.tenant_id === user.id ? chat.owner_id : chat.tenant_id;
+      const otherUserId = chat.participant1_id === user.id ? chat.participant2_id : chat.participant1_id;
 
       const properties = await getProperties();
       const property = properties.find((p) => p.id === chat.property_id);
@@ -73,19 +71,17 @@ export default function ChatScreen() {
     mutationFn: async ({ text, imageUrl }: { text: string; imageUrl?: string }) => {
       if (!user) throw new Error('Not authenticated');
       // Get chat to find receiver
-      const { getChats } = await import('../../lib/mockData');
-      const chats = await getChats(user.id);
-      const chat = chats.find((c) => c.id === chatId);
+      const chat = await messagingService.getConversationById(chatId);
       if (!chat) throw new Error('Chat not found');
 
-      const receiverId = chat.tenant_id === user.id ? chat.owner_id : chat.tenant_id;
-      return await sendMessageToStorage({
+      const receiverId = chat.participant1_id === user.id ? chat.participant2_id : chat.participant1_id;
+      return await messagingService.sendMessage({
         chat_id: chatId,
         sender_id: user.id,
         receiver_id: receiverId,
         property_id: chat.property_id,
-        text,
-        image_url: imageUrl || null,
+        content: text,
+        type: imageUrl ? 'image' : 'text',
       });
     },
     onSuccess: () => {
@@ -98,8 +94,7 @@ export default function ChatScreen() {
   // Mark messages as read when viewing
   const markAsReadMutation = useMutation({
     mutationFn: async (messageIds: string[]) => {
-      const { markMessagesAsRead } = await import('../../lib/mockData');
-      await markMessagesAsRead(messageIds);
+      await messagingService.markAsRead(user?.id || '', chatId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['messages', chatId] });
@@ -259,7 +254,7 @@ export default function ChatScreen() {
       {useNewChatInterface ? (
         <ChatInterface
           conversationId={chatId || ''}
-          otherUserId={chat?.tenant_id === user?.id ? chat?.owner_id || '' : chat?.tenant_id || ''}
+          otherUserId={chat?.participant1_id === user?.id ? chat?.participant2_id || '' : chat?.participant1_id || ''}
           propertyId={chat?.property_id}
           onBack={() => router.back()}
         />
@@ -310,7 +305,7 @@ export default function ChatScreen() {
                       ...item,
                       type: item.sender_id === user?.id ? 'sent' : 'received',
                     }}
-                    isFirstMessage={item.text.includes('listing enquiry')}
+                    isFirstMessage={item.content.includes('listing enquiry')}
                   />
                 )}
                 inverted={false}

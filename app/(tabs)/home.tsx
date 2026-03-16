@@ -7,6 +7,7 @@ import { formatCurrency } from '../../lib/constants';
 import { Ionicons } from '@expo/vector-icons';
 import VerificationBadge from '../../components/VerificationBadge';
 import { getWatermarkedUrl, needsWatermark } from '../../lib/watermark';
+import { propertyService } from '../../lib/propertyService';
 
 export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
@@ -18,11 +19,7 @@ export default function HomeScreen() {
   const { data: properties, isLoading, refetch } = useQuery({
     queryKey: ['properties', 'available'],
     queryFn: async () => {
-      const { getProperties } = await import('../../lib/data');
-      const allProperties = await getProperties();
-      return allProperties
-        .filter((p) => p.is_available && p.status === 'approved')
-        .slice(0, 30);
+      return await propertyService.searchProperties({});
     },
   });
 
@@ -322,13 +319,8 @@ function PropertyCard({ property, onPress }: { property: any; onPress: () => voi
         </Text>
         <View style={styles.ownerRow}>
           <Text style={styles.ownerLabel}>
-            Listed by {ownerName}
+            {ownerLabel}
           </Text>
-          <VerificationBadge
-            status={property.owner?.verification_status || 'unverified'}
-            size="small"
-            showText={false}
-          />
         </View>
         <View style={styles.propertyFooter}>
           <Text style={styles.propertyPrice}>

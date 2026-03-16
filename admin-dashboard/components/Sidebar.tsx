@@ -4,8 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Users, Building2, Flag, BarChart3, Settings, LogOut, Menu, X, DollarSign, CreditCard, Star, Clock, UserCheck } from 'lucide-react';
 import { useState } from 'react';
-import { mockLogout } from '@/lib/mockData';
 import { useRouter } from 'next/navigation';
+import { useClerk, useUser } from '@clerk/nextjs';
 import { Logo } from './Logo';
 
 const navItems = [
@@ -23,24 +23,25 @@ const navItems = [
 ];
 
 export function Sidebar() {
-  return <MockSidebar />;
+  return <ClerkSidebar />;
 }
 
-function MockSidebar() {
+function ClerkSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { signOut } = useClerk();
+  const { user } = useUser();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
-      // Fallback mock auth
-      mockLogout();
+      await signOut();
       router.push('/login');
     } catch {
-      // Last resort navigation
       window.location.href = '/login';
     }
   };
+
 
   return (
     <>
@@ -97,7 +98,26 @@ function MockSidebar() {
           </nav>
 
           {/* Bottom Actions */}
-          <div className="p-4 border-t border-border flex-shrink-0">
+          <div className="p-4 border-t border-border flex-shrink-0 space-y-2">
+            {user && (
+              <div className="px-4 py-3 flex items-center gap-3 bg-background rounded-2xl mb-2">
+                <div className="w-10 h-10 rounded-full bg-primary-light flex items-center justify-center overflow-hidden">
+                  {user.imageUrl ? (
+                    <img src={user.imageUrl} alt={user.fullName || ''} className="w-full h-full object-cover" />
+                  ) : (
+                    <Users size={20} className="text-primary" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-text-primary truncate">
+                    {user.fullName || 'Admin User'}
+                  </p>
+                  <p className="text-xs text-text-secondary truncate">
+                    {user.primaryEmailAddress?.emailAddress}
+                  </p>
+                </div>
+              </div>
+            )}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-red-600 hover:bg-red-50 transition-colors"
@@ -106,6 +126,7 @@ function MockSidebar() {
               <span>Sign Out</span>
             </button>
           </div>
+
         </div>
       </aside>
 

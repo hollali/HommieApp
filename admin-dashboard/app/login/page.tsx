@@ -1,73 +1,53 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { mockLogin, initializeMockData } from '@/lib/mockData';
+import { useState } from 'react';
+import { useSignIn } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 export default function AdminLoginPage() {
-  return <MockAdminLoginPage />;
+  return <ClerkAdminLoginPage />;
 }
 
-function MockAdminLoginPage() {
+function ClerkAdminLoginPage() {
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Initialize mock data on component mount
-  useEffect(() => {
-    try {
-      initializeMockData();
-    } catch (error) {
-      console.error('Failed to initialize mock data:', error);
-    }
-  }, []);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLoaded) return;
+
     setError('');
     setLoading(true);
 
     try {
-      // Mock login (demo mode)
-      const admin = mockLogin(email.trim(), password);
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
 
-      if (admin) {
-        // Small delay to ensure localStorage is set
-        await new Promise(resolve => setTimeout(resolve, 100));
-        // Use window.location for more reliable navigation
-        window.location.href = '/dashboard';
+      if (result.status === 'complete') {
+        await setActive({ session: result.createdSessionId });
+        router.push('/dashboard');
       } else {
-        setError('Invalid email or password.');
+        console.log(result);
+        setError('Login incomplete. Please contact your administrator.');
       }
     } catch (err: any) {
       console.error('Login error:', err);
-      const message = String(err?.message || '');
-      
-      // Check for common error patterns
-      if (message.toLowerCase().includes('not found') || message.toLowerCase().includes('does not exist')) {
-        setError('No account found with this email. Please check your email or sign up first.');
-        return;
-      }
-      
-      if (message.toLowerCase().includes('password') || message.toLowerCase().includes('incorrect')) {
-        setError('Incorrect email or password. Please try again.');
-        return;
-      }
-      
-      if (message.toLowerCase().includes('verification') || message.toLowerCase().includes('verify')) {
-        setError('Please verify your email address before signing in. Check your inbox for a verification link.');
-        return;
-      }
-      
-      // Generic error fallback
-      setError(message || 'Login failed. Please check your credentials and try again.');
+      const message = err.errors?.[0]?.message || 'Login failed. Please check your credentials.';
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -123,7 +103,7 @@ function MockAdminLoginPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((v) => !v)}
+                  onClick={() => setShowPassword((v: boolean) => !v)}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >

@@ -9,6 +9,8 @@ import { processPaystackPaymentFlow, generatePaymentReference } from '../../../l
 import { PaymentMethod } from '../../../lib/types';
 import { getSavedPaymentMethods, SavedPaymentMethod, formatPaymentMethodDisplay, getPaymentMethodIcon } from '../../../lib/paymentMethods';
 import { useQuery } from '@tanstack/react-query';
+import { bookingService } from '../../../lib/bookingService';
+import { propertyService } from '../../../lib/propertyService';
 
 interface BookingDetails {
   propertyId: string;
@@ -127,41 +129,17 @@ export default function BookingPaymentOptionsScreen() {
     try {
       setLoading(true);
 
-      // If a saved payment method is selected, use it directly
+      // If a saved payment method is selected, use it directly (Simplified for now)
       if (selectedSavedMethod) {
         const savedMethod = savedPaymentMethods.find(method => method.id === selectedSavedMethod);
         if (savedMethod) {
-          // Process booking with saved payment method
-          const { createBooking, addNotification } = await import('../../../lib/mockData');
-          
-          await createBooking({
+          const booking = await bookingService.createBooking({
             tenant_id: user.id,
             property_id: bookingDetails.propertyId,
             scheduled_date: bookingDetails.scheduledDateTime,
-            status: 'pending',
           });
 
-          // Add notifications
-          const { getProperties } = await import('../../../lib/mockData');
-          const properties = await getProperties();
-          const property = properties.find((p: any) => p.id === bookingDetails.propertyId);
-
-          if (property) {
-            await addNotification({
-              user_id: user.id,
-              type: 'payment',
-              title: 'Booking confirmed',
-              message: `Booking confirmed using ${formatPaymentMethodDisplay(savedMethod)} for "${property.title}".`,
-              metadata: { property_id: property.id },
-            });
-            await addNotification({
-              user_id: property.owner_id,
-              type: 'payment',
-              title: 'New booking',
-              message: `A new booking was made for "${property.title}".`,
-              metadata: { property_id: property.id },
-            });
-          }
+          if (!booking) throw new Error('Failed to create booking');
 
           router.push('/booking/success');
           return;
@@ -170,17 +148,15 @@ export default function BookingPaymentOptionsScreen() {
 
       // Handle new payment method selection
       if (selectedMethod === 'paystack') {
-        // Process through Paystack (handles multiple payment options)
         const paymentResponse = await processPaystackPaymentFlow({
           amount: bookingDetails.bookingFee,
           currency: 'GHS',
           email: user?.email || undefined,
           type: 'booking',
-          reference: generatePaymentReference('PAYSTACK'),
+          reference: generatePaymentReference('HBK'),
           metadata: { 
             property_id: bookingDetails.propertyId, 
             tenant_id: user.id,
-            payment_method: selectedMethod,
             scheduled_date: bookingDetails.scheduledDateTime,
           },
         });
@@ -190,37 +166,15 @@ export default function BookingPaymentOptionsScreen() {
           return;
         }
 
-        // Create booking after successful payment initiation
-        const { createBooking, addNotification } = await import('../../../lib/mockData');
-        
-        await createBooking({
+        // We create the booking in "pending" status. 
+        // In a production app, use a Webhook to move it to "confirmed"
+        const booking = await bookingService.createBooking({
           tenant_id: user.id,
           property_id: bookingDetails.propertyId,
           scheduled_date: bookingDetails.scheduledDateTime,
-          status: 'pending',
         });
 
-        // Add notifications
-        const { getProperties } = await import('../../../lib/mockData');
-        const properties = await getProperties();
-        const property = properties.find((p: any) => p.id === bookingDetails.propertyId);
-
-        if (property) {
-          await addNotification({
-            user_id: user.id,
-            type: 'payment',
-            title: 'Payment initiated',
-            message: `Payment started for booking "${property.title}".`,
-            metadata: { property_id: property.id },
-          });
-          await addNotification({
-            user_id: property.owner_id,
-            type: 'payment',
-            title: 'Payment initiated',
-            message: `A booking payment was initiated for "${property.title}".`,
-            metadata: { property_id: property.id },
-          });
-        }
+        if (!booking) throw new Error('Failed to create booking record');
 
         router.push('/booking/success');
       } else {

@@ -43,6 +43,7 @@ export interface User {
   host_languages?: string | null;
   host_response_rate?: string | null;
   host_since?: string | null;
+  push_token?: string | null;
 }
 
 export interface Property {

@@ -1,5 +1,8 @@
+import { supabase, isSupabaseConfigured } from './supabase';
+
 export interface Message {
   id: string;
+  chat_id: string;
   sender_id: string;
   receiver_id: string;
   property_id?: string;
@@ -27,8 +30,10 @@ export interface Conversation {
   participant1_id: string;
   participant2_id: string;
   property_id?: string;
-  last_message?: Message;
-  unread_count: number;
+  last_message?: string;
+  last_message_time?: string;
+  unread_count_p1: number;
+  unread_count_p2: number;
   created_at: string;
   updated_at?: string;
   participant1?: {
@@ -48,167 +53,267 @@ export interface Conversation {
   };
 }
 
-// Mock messaging service (in production, this would use WebSocket/Realtime database)
 class MessagingService {
-  private messages: Message[] = [];
-  private conversations: Conversation[] = [];
-  private listeners: Map<string, ((message: Message) => void)[]> = new Map();
-
-  // Initialize with some mock data
-  constructor() {
-    this.initializeMockData();
-  }
-
-  private initializeMockData() {
-    // Mock conversations
-    this.conversations = [
-      {
-        id: 'conv1',
-        participant1_id: 'user1',
-        participant2_id: 'user2',
-        property_id: 'prop1',
-        unread_count: 2,
-        created_at: new Date().toISOString(),
-        participant1: {
-          id: 'user1',
-          name: 'John Doe',
-          avatar: 'https://i.pravatar.cc/150?img=1',
-        },
-        participant2: {
-          id: 'user2',
-          name: 'Jane Smith',
-          avatar: 'https://i.pravatar.cc/150?img=2',
-        },
-        property: {
-          id: 'prop1',
-          title: 'Modern 2-Bedroom Apartment',
-          images: ['https://picsum.photos/200/300?random=1'],
-        },
-      },
-    ];
-
-    // Mock messages
-    this.messages = [
-      {
-        id: 'msg1',
-        sender_id: 'user2',
-        receiver_id: 'user1',
-        property_id: 'prop1',
-        content: 'Hi! Is this apartment still available?',
-        type: 'text',
-        created_at: new Date(Date.now() - 3600000).toISOString(),
-        read_at: undefined,
-      },
-      {
-        id: 'msg2',
-        sender_id: 'user2',
-        receiver_id: 'user1',
-        property_id: 'prop1',
-        content: 'I\'m interested in viewing it this weekend.',
-        type: 'text',
-        created_at: new Date(Date.now() - 1800000).toISOString(),
-        read_at: undefined,
-      },
-    ];
-
-    // Update last message for conversation
-    const lastMessage = this.messages[this.messages.length - 1];
-    if (lastMessage) {
-      this.conversations[0].last_message = lastMessage;
-    }
-  }
-
   // Get all conversations for a user
   async getConversations(userId: string): Promise<Conversation[]> {
-    return this.conversations.filter(
-      conv => conv.participant1_id === userId || conv.participant2_id === userId
-    );
-  }
-
-  // Get messages between two users (optionally filtered by property)
-  async getMessages(
-    userId1: string,
-    userId2: string,
-    propertyId?: string
-  ): Promise<Message[]> {
-    let messages = this.messages.filter(
-      msg => 
-        (msg.sender_id === userId1 && msg.receiver_id === userId2) ||
-        (msg.sender_id === userId2 && msg.receiver_id === userId1)
-    );
-
-    if (propertyId) {
-      messages = messages.filter(msg => msg.property_id === propertyId);
+    if (!isSupabaseConfigured) {
+      // Fallback or empty during transitions
+      return [];
     }
 
-    return messages.sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    );
+    const { data, error } = await supabase
+      .from('conversations')
+      .select(`
+        *,
+        participant1:users!participant1_id(id, full_name, avatar_url),
+        participant2:users!participant2_id(id, full_name, avatar_url),
+        property:properties(id, title)
+      `)
+      .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`)
+      .order('updated_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching conversations:', error);
+      return [];
+    }
+
+    return (data || []).map(conv => ({
+        ...conv,
+        unread_count: conv.participant1_id === userId ? conv.unread_count_p1 : conv.unread_count_p2,
+        participant1: {
+            id: conv.participant1.id,
+            name: conv.participant1.full_name,
+            avatar: conv.participant1.avatar_url
+        },
+        participant2: {
+            id: conv.participant2.id,
+            name: conv.participant2.full_name,
+            avatar: conv.participant2.avatar_url
+        }
+    })) as any;
+  }
+
+  // Get a single conversation by ID
+  async getConversationById(conversationId: string): Promise<Conversation | null> {
+    if (!isSupabaseConfigured) return null;
+
+    const { data, error } = await supabase
+      .from('conversations')
+      .select(`
+        *,
+        participant1:users!participant1_id(id, full_name, avatar_url),
+        participant2:users!participant2_id(id, full_name, avatar_url),
+        property:properties(id, title)
+      `)
+      .eq('id', conversationId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching conversation:', error);
+      return null;
+    }
+
+    return {
+        ...data,
+        participant1: {
+            id: data.participant1.id,
+            name: data.participant1.full_name,
+            avatar: data.participant1.avatar_url
+        },
+        participant2: {
+            id: data.participant2.id,
+            name: data.participant2.full_name,
+            avatar: data.participant2.avatar_url
+        }
+    } as any;
+  }
+
+  // Get messages for a specific conversation
+  async getMessages(
+    userId: string,
+    otherUserId: string,
+    propertyId?: string,
+    chatId?: string
+  ): Promise<Message[]> {
+    if (!isSupabaseConfigured) return [];
+
+    let query = supabase.from('messages').select('*');
+
+    if (chatId) {
+      query = query.eq('chat_id', chatId);
+    } else {
+        // Fallback to finding conversation first
+        const { data: conv } = await supabase
+            .from('conversations')
+            .select('id')
+            .or(`and(participant1_id.eq.${userId},participant2_id.eq.${otherUserId}),and(participant1_id.eq.${otherUserId},participant2_id.eq.${userId})`)
+            .maybeSingle();
+        
+        if (!conv) return [];
+        query = query.eq('chat_id', conv.id);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching messages:', error);
+      return [];
+    }
+
+    return (data || []).map(msg => ({
+        ...msg,
+        content: msg.text // Map 'text' from DB to 'content' for UI
+    })) as any;
   }
 
   // Send a message
-  async sendMessage(message: Omit<Message, 'id' | 'created_at'>): Promise<Message> {
-    const newMessage: Message = {
-      ...message,
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      created_at: new Date().toISOString(),
-    };
+  async sendMessage(message: Omit<Message, 'id' | 'created_at' | 'chat_id'> & { chat_id?: string }): Promise<Message | null> {
+    if (!isSupabaseConfigured) return null;
 
-    this.messages.push(newMessage);
+    let targetChatId = message.chat_id;
 
-    // Update conversation
-    const conversation = this.findOrCreateConversation(
-      message.sender_id,
-      message.receiver_id,
-      message.property_id
-    );
-    
-    conversation.last_message = newMessage;
-    conversation.updated_at = newMessage.created_at;
+    // 1. Find or create conversation if chatId not provided
+    if (!targetChatId) {
+      const { data: conv, error: convError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`and(participant1_id.eq.${message.sender_id},participant2_id.eq.${message.receiver_id}),and(participant1_id.eq.${message.receiver_id},participant2_id.eq.${message.sender_id})`)
+        .maybeSingle();
 
-    // Update unread count for receiver
-    if (message.receiver_id === conversation.participant1_id) {
-      conversation.unread_count++;
-    } else {
-      conversation.unread_count++;
+      if (conv) {
+        targetChatId = conv.id;
+      } else {
+        const { data: newConv, error: createError } = await supabase
+          .from('conversations')
+          .insert({
+            participant1_id: message.sender_id,
+            participant2_id: message.receiver_id,
+            property_id: message.property_id,
+            last_message: message.content,
+            last_message_time: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        if (createError) {
+          console.error('Error creating conversation:', createError);
+          return null;
+        }
+        targetChatId = newConv.id;
+      }
     }
 
-    // Notify listeners
-    this.notifyListeners(newMessage);
+    // 2. Insert message
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        chat_id: targetChatId,
+        sender_id: message.sender_id,
+        receiver_id: message.receiver_id,
+        property_id: message.property_id,
+        text: message.content,
+        type: message.type || 'text'
+      })
+      .select()
+      .single();
 
-    return newMessage;
+    if (error) {
+      console.error('Error sending message:', error);
+      return null;
+    }
+
+    // 3. Update conversation last message and unread count
+    // In a real production app, this would be a Postgres trigger or Edge Function
+    // For this implementation, we do it client-side for simplicity if triggers are not fully setup
+    try {
+        await supabase.rpc('increment_unread_count', { 
+            conv_id: targetChatId, 
+            is_p1: false // Logic depends on who is receiving
+        });
+    } catch (e) {
+        // Fallback update if RPC doesn't exist
+        await supabase.from('conversations')
+            .update({ 
+                last_message: message.content, 
+                last_message_time: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', targetChatId);
+    }
+
+    return { ...data, content: data.text } as any;
+  }
+
+  // Subscribe to all new messages for a user
+  subscribeToAllMessages(
+    userId: string,
+    onMessage: (message: Message) => void
+  ) {
+    if (!isSupabaseConfigured) return () => {};
+
+    const subscription = supabase
+      .channel(`user-messages-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `receiver_id=eq.${userId}`,
+        },
+        (payload) => {
+          onMessage(payload.new as any);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
   }
 
   // Mark messages as read
   async markAsRead(userId: string, conversationId: string): Promise<void> {
-    const conversation = this.conversations.find(conv => conv.id === conversationId);
-    if (!conversation) return;
+    if (!isSupabaseConfigured) return;
 
-    // Mark unread messages as read
-    const unreadMessages = this.messages.filter(
-      msg => 
-        msg.receiver_id === userId &&
-        !msg.read_at &&
-        ((msg.sender_id === conversation.participant1_id && msg.receiver_id === conversation.participant2_id) ||
-         (msg.sender_id === conversation.participant2_id && msg.receiver_id === conversation.participant1_id))
-    );
+    // Mark messages as read in messages table
+    await supabase
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('chat_id', conversationId)
+      .eq('receiver_id', userId)
+      .is('read_at', null);
 
-    unreadMessages.forEach(msg => {
-      msg.read_at = new Date().toISOString();
-    });
-
-    // Reset unread count
-    conversation.unread_count = 0;
+    // Reset unread count in conversations table
+    const { data: conv } = await supabase
+        .from('conversations')
+        .select('participant1_id')
+        .eq('id', conversationId)
+        .single();
+    
+    if (conv) {
+        const isP1 = conv.participant1_id === userId;
+        await supabase
+            .from('conversations')
+            .update({ [isP1 ? 'unread_count_p1' : 'unread_count_p2']: 0 })
+            .eq('id', conversationId);
+    }
   }
 
   // Get unread message count for a user
   async getUnreadCount(userId: string): Promise<number> {
-    return this.conversations
-      .filter(conv => 
-        (conv.participant1_id === userId || conv.participant2_id === userId) &&
-        conv.unread_count > 0
-      )
-      .reduce((total, conv) => total + conv.unread_count, 0);
+    if (!isSupabaseConfigured) return 0;
+
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('unread_count_p1, unread_count_p2, participant1_id')
+      .or(`participant1_id.eq.${userId},participant2_id.eq.${userId}`);
+
+    if (error) return 0;
+
+    return (data || []).reduce((acc, conv) => {
+        return acc + (conv.participant1_id === userId ? conv.unread_count_p1 : conv.unread_count_p2);
+    }, 0);
   }
 
   // Subscribe to new messages for a conversation
@@ -217,74 +322,24 @@ class MessagingService {
     conversationId: string,
     callback: (message: Message) => void
   ): () => void {
-    const key = `${userId}_${conversationId}`;
-    
-    if (!this.listeners.has(key)) {
-      this.listeners.set(key, []);
-    }
-    
-    this.listeners.get(key)!.push(callback);
+    if (!isSupabaseConfigured) return () => {};
 
-    // Return unsubscribe function
+    const subscription = supabase
+      .channel(`chat:${conversationId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `chat_id=eq.${conversationId}`
+      }, (payload) => {
+        const msg = payload.new as any;
+        callback({ ...msg, content: msg.text });
+      })
+      .subscribe();
+
     return () => {
-      const callbacks = this.listeners.get(key);
-      if (callbacks) {
-        const index = callbacks.indexOf(callback);
-        if (index > -1) {
-          callbacks.splice(index, 1);
-        }
-      }
+      supabase.removeChannel(subscription);
     };
-  }
-
-  private findOrCreateConversation(
-    userId1: string,
-    userId2: string,
-    propertyId?: string
-  ): Conversation {
-    let conversation = this.conversations.find(
-      conv =>
-        (conv.participant1_id === userId1 && conv.participant2_id === userId2) ||
-        (conv.participant1_id === userId2 && conv.participant2_id === userId1)
-    );
-
-    if (!conversation) {
-      conversation = {
-        id: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        participant1_id: userId1,
-        participant2_id: userId2,
-        property_id: propertyId,
-        unread_count: 0,
-        created_at: new Date().toISOString(),
-      };
-      this.conversations.push(conversation);
-    }
-
-    return conversation;
-  }
-
-  private notifyListeners(message: Message) {
-    const conversation = this.conversations.find(
-      conv =>
-        (conv.participant1_id === message.sender_id && conv.participant2_id === message.receiver_id) ||
-        (conv.participant1_id === message.receiver_id && conv.participant2_id === message.sender_id)
-    );
-
-    if (!conversation) return;
-
-    // Notify sender
-    const senderKey = `${message.sender_id}_${conversation.id}`;
-    const senderCallbacks = this.listeners.get(senderKey);
-    if (senderCallbacks) {
-      senderCallbacks.forEach(callback => callback(message));
-    }
-
-    // Notify receiver
-    const receiverKey = `${message.receiver_id}_${conversation.id}`;
-    const receiverCallbacks = this.listeners.get(receiverKey);
-    if (receiverCallbacks) {
-      receiverCallbacks.forEach(callback => callback(message));
-    }
   }
 }
 
@@ -292,13 +347,14 @@ export const messagingService = new MessagingService();
 
 // Utility functions
 export const formatMessageTime = (dateString: string): string => {
+  if (!dateString) return '';
   const date = new Date(dateString);
   const now = new Date();
   const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
   if (diffInHours < 1) {
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    return diffInMinutes <= 1 ? 'now' : `${diffInMinutes}m ago`;
+    return diffInMinutes <= 0 ? 'now' : `${diffInMinutes}m ago`;
   } else if (diffInHours < 24) {
     return `${Math.floor(diffInHours)}h ago`;
   } else if (diffInHours < 24 * 7) {

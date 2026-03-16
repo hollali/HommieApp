@@ -7,6 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { processPaystackPaymentFlow, generatePaymentReference } from '../../lib/payments';
 import { FEATURE_FLAGS } from '../../lib/featureFlags';
+import { propertyService } from '../../lib/propertyService';
+import { bookingService } from '../../lib/bookingService';
 
 const timeSlots = ['11:00AM', '1:00PM', '3:00PM', '5:00PM', '7:00PM'];
 
@@ -33,9 +35,8 @@ export default function ScheduleTourScreen() {
   const { data: propertyBookings = [] } = useQuery({
     queryKey: ['bookings', propertyId],
     queryFn: async () => {
-      const { getBookings } = await import('../../lib/mockData');
-      const bookings = await getBookings();
-      return bookings.filter((b: any) => b.property_id === propertyId);
+      // In a real app we'd fetch actual bookings for this property to block dates
+      return [];
     },
     enabled: bookingsEnabled && !!propertyId,
   });
@@ -43,9 +44,7 @@ export default function ScheduleTourScreen() {
   const { data: property } = useQuery({
     queryKey: ['property', propertyId, 'booking'],
     queryFn: async () => {
-      const { getProperties } = await import('../../lib/mockData');
-      const properties = await getProperties();
-      return properties.find((p: any) => p.id === propertyId) || null;
+      return await propertyService.getPropertyById(propertyId);
     },
     enabled: bookingsEnabled && !!propertyId,
   });

@@ -153,6 +153,11 @@ export default function ProfileScreen() {
 
         <View style={styles.menuSection}>
           <MenuButton
+            icon="shield-checkmark-outline"
+            title="Identity Verification"
+            onPress={() => router.push("/verification")}
+          />
+          <MenuButton
             icon="person-outline"
             title="Edit Profile"
             onPress={() => router.push("/profile/edit")}

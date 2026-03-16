@@ -5,26 +5,26 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { isSupabaseConfigured } from '../lib/supabase';
-import { getMockProfile, setMockProfile } from '../lib/mockAuth';
+import { useAuth } from '../hooks/useAuth';
+import { verificationService } from '../lib/verificationService';
 
 export default function VerificationScreen() {
   const router = useRouter();
-  const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'not_started'>('not_started');
+  const { user } = useAuth();
+  const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'unverified' | 'not_started'>('not_started');
   const [uploading, setUploading] = useState(false);
   const [documentsCount, setDocumentsCount] = useState(0);
 
   useEffect(() => {
-    if (isSupabaseConfigured) return;
-    getMockProfile().then((profile) => {
-      if (profile?.verification_status === 'pending' || profile?.verification_status === 'verified') {
-        setVerificationStatus(profile.verification_status);
+    if (!user) return;
+    
+    verificationService.getVerificationStatus(user.id).then((status) => {
+      if (status) {
+        setVerificationStatus(status.verification_status as any);
+        setDocumentsCount(status.verification_documents?.length || 0);
       }
-      const docCount = Array.isArray((profile as any)?.verification_documents)
-        ? (profile as any).verification_documents.length
-        : 0;
-      setDocumentsCount(Math.min(3, docCount));
     });
-  }, []);
+  }, [user]);
 
   const handleStartVerification = () => {
     startVerificationFlow();
@@ -52,14 +52,11 @@ export default function VerificationScreen() {
       }
 
       const documents = result.assets.map((asset) => asset.uri);
-      setDocumentsCount(Math.min(3, documents.length));
-
-      if (!isSupabaseConfigured) {
-        await setMockProfile({
-          verification_status: 'pending',
-          verification_documents: documents,
-          verification_requested_at: new Date().toISOString(),
-        });
+      
+      if (user) {
+        await verificationService.submitVerification(user.id, documents);
+        setDocumentsCount(Math.min(3, documents.length));
+        setVerificationStatus('pending');
       }
 
       setVerificationStatus('pending');

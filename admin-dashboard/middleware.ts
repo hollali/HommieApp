@@ -8,11 +8,13 @@ const isPublicRoute = createRouteMatcher([
   '/api/paystack/webhook(.*)'
 ]);
 
+
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
     await auth.protect();
   }
 });
+
 
 export const config = {
   matcher: [

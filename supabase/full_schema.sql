@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     host_response_rate TEXT,
     host_since TEXT,
     avatar_url TEXT,
+    push_token TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -126,7 +127,7 @@ CREATE TABLE IF NOT EXISTS public.subscriptions (
 CREATE TABLE IF NOT EXISTS public.transactions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
-    type TEXT NOT NULL CHECK (type IN ('subscription', 'featured_listing', 'boost', 'verification', 'commission')),
+    type TEXT NOT NULL CHECK (type IN ('subscription', 'featured_listing', 'boost', 'verification', 'commission', 'payout', 'booking_payment')),
     amount DECIMAL(10, 2) NOT NULL,
     currency TEXT NOT NULL DEFAULT 'GHS',
     status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'failed', 'refunded')) DEFAULT 'pending',
@@ -137,6 +138,20 @@ CREATE TABLE IF NOT EXISTS public.transactions (
     metadata JSONB,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     completed_at TIMESTAMP WITH TIME ZONE
+);
+
+-- Payouts table
+CREATE TABLE IF NOT EXISTS public.payouts (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    method TEXT CHECK (method IN ('bank', 'mobile_money')) NOT NULL,
+    account_details JSONB NOT NULL,
+    status TEXT CHECK (status IN ('pending', 'processing', 'paid', 'rejected')) DEFAULT 'pending',
+    rejection_reason TEXT,
+    requested_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    processed_at TIMESTAMP WITH TIME ZONE,
+    processed_by UUID REFERENCES public.users(id)
 );
 
 -- Conversations table
@@ -203,17 +218,24 @@ CREATE TABLE IF NOT EXISTS public.admin_users (
 );
 
 -- 3. INDEXES
-CREATE INDEX idx_properties_owner_id ON public.properties(owner_id);
-CREATE INDEX idx_properties_status ON public.properties(status);
-CREATE INDEX idx_properties_region ON public.properties(region);
-CREATE INDEX idx_messages_chat_id ON public.messages(chat_id);
-CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
-CREATE INDEX idx_conversations_participants ON public.conversations(participant1_id, participant2_id);
+CREATE INDEX IF NOT EXISTS idx_properties_owner_id ON public.properties(owner_id);
+CREATE INDEX IF NOT EXISTS idx_properties_status ON public.properties(status);
+CREATE INDEX IF NOT EXISTS idx_properties_region ON public.properties(region);
+CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON public.messages(chat_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_participants ON public.conversations(participant1_id, participant2_id);
 
 -- 4. TRIGGERS
+DROP TRIGGER IF EXISTS update_users_updated_at ON public.users;
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_properties_updated_at ON public.properties;
 CREATE TRIGGER update_properties_updated_at BEFORE UPDATE ON public.properties FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_bookings_updated_at ON public.bookings;
 CREATE TRIGGER update_bookings_updated_at BEFORE UPDATE ON public.bookings FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_conversations_updated_at ON public.conversations;
 CREATE TRIGGER update_conversations_updated_at BEFORE UPDATE ON public.conversations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 4b. MESSAGE MONITORING FUNCTION
@@ -250,6 +272,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_monitor_message_content ON public.messages;
 CREATE TRIGGER tr_monitor_message_content
 BEFORE INSERT ON public.messages
 FOR EACH ROW EXECUTE FUNCTION monitor_message_content();
@@ -286,6 +309,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS tr_notify_user_verification_update ON public.users;
 CREATE TRIGGER tr_notify_user_verification_update
 AFTER UPDATE OF verification_status ON public.users
 FOR EACH ROW EXECUTE FUNCTION notify_user_verification_update();
@@ -321,65 +345,108 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+ALTER TABLE public.payouts ENABLE ROW LEVEL SECURITY;
+
+-- Payouts Policies
+DROP POLICY IF EXISTS "Users can view own payouts" ON public.payouts;
+CREATE POLICY "Users can view own payouts" ON public.payouts FOR SELECT USING (auth.uid() = user_id OR is_admin());
+
+DROP POLICY IF EXISTS "Users can create payout requests" ON public.payouts;
+CREATE POLICY "Users can create payout requests" ON public.payouts FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Admins can manage payouts" ON public.payouts;
+CREATE POLICY "Admins can manage payouts" ON public.payouts FOR ALL USING (is_admin());
+
 -- Users Policies
+DROP POLICY IF EXISTS "Users can view public profile info" ON public.users;
 CREATE POLICY "Users can view public profile info" ON public.users FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
 CREATE POLICY "Users can insert own profile" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 
 -- Properties Policies
+DROP POLICY IF EXISTS "Anyone can view approved properties" ON public.properties;
 CREATE POLICY "Anyone can view approved properties" ON public.properties FOR SELECT USING (is_available = true AND status = 'approved');
+
+DROP POLICY IF EXISTS "Owners can view their own properties" ON public.properties;
 CREATE POLICY "Owners can view their own properties" ON public.properties FOR SELECT USING (auth.uid() = owner_id OR is_admin());
+
+DROP POLICY IF EXISTS "Owners can update their own properties" ON public.properties;
 CREATE POLICY "Owners can update their own properties" ON public.properties FOR UPDATE USING (auth.uid() = owner_id OR is_admin());
+
+DROP POLICY IF EXISTS "Owners can delete their own properties" ON public.properties;
 CREATE POLICY "Owners can delete their own properties" ON public.properties FOR DELETE USING (auth.uid() = owner_id OR is_admin());
+
+DROP POLICY IF EXISTS "Authorized roles can create properties" ON public.properties;
 CREATE POLICY "Authorized roles can create properties" ON public.properties FOR INSERT WITH CHECK (
     auth.uid() = owner_id AND 
     EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('landlord', 'agent', 'airbnb_host', 'admin'))
 );
 
 -- Property Images Policies
+DROP POLICY IF EXISTS "Public view images of approved properties" ON public.property_images;
 CREATE POLICY "Public view images of approved properties" ON public.property_images FOR SELECT USING (
     EXISTS (SELECT 1 FROM public.properties WHERE id = property_id AND (status = 'approved' OR owner_id = auth.uid()))
 );
+
+DROP POLICY IF EXISTS "Owners can manage property images" ON public.property_images;
 CREATE POLICY "Owners can manage property images" ON public.property_images FOR ALL USING (
     EXISTS (SELECT 1 FROM public.properties WHERE id = property_id AND (owner_id = auth.uid() OR is_admin()))
 );
 
 -- Bookings Policies
+DROP POLICY IF EXISTS "Participants can view own bookings" ON public.bookings;
 CREATE POLICY "Participants can view own bookings" ON public.bookings FOR SELECT USING (
     auth.uid() = tenant_id OR 
     EXISTS (SELECT 1 FROM public.properties WHERE id = property_id AND (owner_id = auth.uid() OR is_admin()))
 );
+
+DROP POLICY IF EXISTS "Tenants can create bookings" ON public.bookings;
 CREATE POLICY "Tenants can create bookings" ON public.bookings FOR INSERT WITH CHECK (
     auth.uid() = tenant_id AND
     EXISTS (SELECT 1 FROM public.properties WHERE id = property_id AND type = 'airbnb')
 );
+
+DROP POLICY IF EXISTS "Owners can update booking status" ON public.bookings;
 CREATE POLICY "Owners can update booking status" ON public.bookings FOR UPDATE USING (
     EXISTS (SELECT 1 FROM public.properties WHERE id = property_id AND (owner_id = auth.uid() OR is_admin()))
 );
 
 -- Conversations Policies
+DROP POLICY IF EXISTS "Participants can view their conversations" ON public.conversations;
 CREATE POLICY "Participants can view their conversations" ON public.conversations FOR SELECT USING (
     auth.uid() = participant1_id OR auth.uid() = participant2_id OR is_admin()
 );
+DROP POLICY IF EXISTS "Participants can create conversations" ON public.conversations;
 CREATE POLICY "Participants can create conversations" ON public.conversations FOR INSERT WITH CHECK (
     auth.uid() = participant1_id OR auth.uid() = participant2_id
 );
 
 -- Messages Policies
+DROP POLICY IF EXISTS "Participants can view chat messages" ON public.messages;
 CREATE POLICY "Participants can view chat messages" ON public.messages FOR SELECT USING (
     auth.uid() = sender_id OR auth.uid() = receiver_id OR is_admin()
 );
+DROP POLICY IF EXISTS "Senders can insert messages" ON public.messages;
 CREATE POLICY "Senders can insert messages" ON public.messages FOR INSERT WITH CHECK (
     auth.uid() = sender_id
 );
 
 -- Notifications Policies
+DROP POLICY IF EXISTS "Users can view own notifications" ON public.notifications;
 CREATE POLICY "Users can view own notifications" ON public.notifications FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own notifications" ON public.notifications;
 CREATE POLICY "Users can update own notifications" ON public.notifications FOR UPDATE USING (auth.uid() = user_id);
 
 -- Transactions Policies
+DROP POLICY IF EXISTS "Users can view own transactions" ON public.transactions;
 CREATE POLICY "Users can view own transactions" ON public.transactions FOR SELECT USING (auth.uid() = user_id OR is_admin());
 
 -- Reports Policies
+DROP POLICY IF EXISTS "Users can create reports" ON public.reports;
 CREATE POLICY "Users can create reports" ON public.reports FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+DROP POLICY IF EXISTS "Admins can view and manage reports" ON public.reports;
 CREATE POLICY "Admins can view and manage reports" ON public.reports FOR ALL USING (is_admin());

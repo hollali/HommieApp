@@ -11,6 +11,7 @@ import { LocationSuggestions } from '../../components/LocationSuggestions';
 import AdvancedSearchFilters, { SearchFilters } from '../../components/AdvancedSearchFilters';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getCurrentLocation, geocodeAddress } from '../../lib/locationService';
+import { propertyService } from '../../lib/propertyService';
 
 const SAVED_SEARCHES_KEY = '@hommie:saved-searches';
 
@@ -157,97 +158,17 @@ export default function SearchScreen() {
       centerLocation,
     ],
     queryFn: async () => {
-      const { getProperties } = await import('../../lib/data');
-      let allProperties = await getProperties();
-
-      // Filter by availability
-      allProperties = allProperties.filter((p) => p.is_available && p.status === 'approved');
-
-      // Filter by type
-      if (selectedType !== 'all') {
-        allProperties = allProperties.filter((p) => p.type === selectedType);
-      }
-
-      // Filter by region
-      if (selectedRegion !== 'all') {
-        allProperties = allProperties.filter((p) => p.region === selectedRegion);
-      }
-
-      // Filter by price range
-      allProperties = allProperties.filter(
-        (p) => p.price >= priceRange[0] && p.price <= priceRange[1]
-      );
-
-      // Filter by bedrooms
-      if (minBedrooms !== null) {
-        allProperties = allProperties.filter(
-          (p) => p.bedrooms !== null && p.bedrooms >= minBedrooms
-        );
-      }
-
-      // Filter by bathrooms
-      if (minBathrooms !== null) {
-        allProperties = allProperties.filter(
-          (p) => p.bathrooms !== null && p.bathrooms >= minBathrooms
-        );
-      }
-
-      // Filter by parking
-      if (hasParking !== null) {
-        allProperties = allProperties.filter(
-          (p) => p.parking === hasParking
-        );
-      }
-
-      // Filter by amenities
-      if (selectedAmenities.length > 0) {
-        allProperties = allProperties.filter((p) =>
-          selectedAmenities.every((amenity) => p.amenities?.includes(amenity))
-        );
-      }
-
-      // Filter by selected location or search query
-      if (selectedLocation) {
-        if (selectedLocation.area) {
-          allProperties = allProperties.filter((p) => p.area.toLowerCase().includes(selectedLocation.area!.toLowerCase()));
-        }
-        if (selectedLocation.city) {
-          allProperties = allProperties.filter((p) => p.city.toLowerCase() === selectedLocation.city!.toLowerCase());
-        }
-        if (selectedLocation.region) {
-          allProperties = allProperties.filter((p) => p.region.toLowerCase() === selectedLocation.region!.toLowerCase());
-        }
-      } else if (searchQuery) {
-        // Fallback to text search if no location selected
-        const query = searchQuery.toLowerCase();
-        allProperties = allProperties.filter(
-          (p) =>
-            p.title.toLowerCase().includes(query) ||
-            p.description?.toLowerCase().includes(query) ||
-            p.area.toLowerCase().includes(query) ||
-            p.city.toLowerCase().includes(query) ||
-            p.region.toLowerCase().includes(query)
-        );
-      }
-
-      // Filter by radius if center is set
-      if (radiusKm && centerLocation) {
-        allProperties = allProperties.filter((p) => {
-          if (p.latitude == null || p.longitude == null) return false;
-          const distance = haversineKm(
-            centerLocation.latitude,
-            centerLocation.longitude,
-            p.latitude,
-            p.longitude
-          );
-          return distance <= radiusKm;
-        });
-      }
-
-      return allProperties.map((p) => ({
-        ...p,
-        property_images: [],
-      }));
+      return await propertyService.searchProperties({
+        type: selectedType,
+        minPrice: priceRange[0],
+        maxPrice: priceRange[1],
+        searchQuery: searchQuery,
+        bedrooms: minBedrooms,
+        bathrooms: minBathrooms,
+        parking: hasParking,
+        city: selectedLocation?.city,
+        region: selectedRegion !== 'all' ? selectedRegion : undefined
+      });
     },
   });
 

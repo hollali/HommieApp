@@ -8,7 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../../hooks/useAuth';
 import { Image } from 'expo-image';
 import { pickMultipleImages, ImageResult } from '../../../lib/imageService';
-import { getProperties, getListingLimitForUser } from '../../../lib/mockData';
+import { propertyService } from '../../../lib/propertyService';
+import { getListingLimitForUser } from '../../../lib/mockData';
 import { isSupabaseConfigured } from '../../../lib/supabase';
 import { getMockProfile } from '../../../lib/mockAuth';
 
@@ -88,12 +89,11 @@ export default function PropertyCreateStep1Screen() {
   };
 
   const handleContinue = async () => {
-    if (user?.role === 'agent' || user?.role === 'landlord') {
-      const mockProfile = !isSupabaseConfigured ? await getMockProfile() : null;
-      const currentUser = { ...user, ...mockProfile };
-      const listingLimit = getListingLimitForUser(currentUser);
-      const allProperties = await getProperties();
-      const activeListings = allProperties.filter((p) => p.owner_id === user.id).length;
+    if (user?.role === 'agent' || user?.role === 'landlord' || user?.role === 'airbnb_host') {
+      const listingLimit = getListingLimitForUser(user as any);
+      const ownerProperties = await propertyService.getOwnerProperties(user.id);
+      const activeListings = ownerProperties.length;
+      
       if (activeListings >= listingLimit) {
         Alert.alert(
           'Upgrade required',

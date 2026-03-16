@@ -1,4 +1,5 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -12,6 +13,12 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { 
+  messagingService,
+  getConversationDisplayName, 
+  getConversationAvatar, 
+  formatMessageTime 
+} from '../../lib/messaging';
 
 export default function ChatsScreen() {
   const { user } = useAuth();
@@ -67,16 +74,25 @@ export default function ChatsScreen() {
     console.log('Reset swipe position');
   };
 
-  const { data: chats, isLoading } = useQuery({
+  const { data: chats, isLoading, refetch } = useQuery({
     queryKey: ['chats', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      // Use mock data
-      const { getChats } = await import('../../lib/mockData');
-      return await getChats(user.id);
+      return await messagingService.getConversations(user.id);
     },
     enabled: !!user,
   });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    // Subscribe to any new messages to refresh the conversation list
+    const unsubscribe = messagingService.subscribeToAllMessages(user.id, () => {
+      refetch();
+    });
+    
+    return () => unsubscribe();
+  }, [user?.id, refetch]);
 
   if (isLoading) {
     return (
@@ -126,6 +142,7 @@ export default function ChatsScreen() {
             onPress={() => router.push(`/chat/${item.id}`)}
             onDelete={() => deleteChat(item.id)}
             onArchive={() => archiveChat(item.id)}
+            userId={user?.id || ''}
           />
         )}
       />
@@ -137,12 +154,14 @@ function ChatItem({
   chat, 
   onPress, 
   onDelete, 
-  onArchive 
+  onArchive,
+  userId
 }: { 
   chat: any; 
   onPress: () => void; 
   onDelete: () => void; 
-  onArchive: () => void; 
+  onArchive: () => void;
+  userId: string;
 }) {
   const translateX = useSharedValue(0);
   const SWIPE_THRESHOLD = 100;
@@ -194,21 +213,37 @@ function ChatItem({
         </TouchableOpacity>
       </Animated.View>
 
-      <GestureDetector gesture={gesture}>
+    <GestureDetector gesture={gesture}>
         <Animated.View style={[animatedStyle]}>
           <TouchableOpacity style={styles.chatItem} onPress={onPress}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={24} color="#0066FF" />
+              {getConversationAvatar(chat, userId) ? (
+                <Image source={{ uri: getConversationAvatar(chat, userId) }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={24} color="#0066FF" />
+              )}
             </View>
             <View style={styles.chatInfo}>
-              <Text style={styles.chatName}>{chat.name || 'Property Owner'}</Text>
+              <Text style={styles.chatName}>
+                {getConversationDisplayName(chat, userId)}
+              </Text>
               <Text style={styles.chatPreview} numberOfLines={1}>
-                {chat.lastMessage || 'I Will Send You More Listing For You To Check...'}
+                {chat.last_message || 'No messages yet'}
               </Text>
             </View>
-            <Text style={[styles.chatTime, chat.unread && styles.chatTimeUnread]}>
-              {chat.time || '10:24AM'}
-            </Text>
+            <View style={styles.chatMeta}>
+              <Text style={[
+                styles.chatTime, 
+                (chat.unread_count > 0) && styles.chatTimeUnread
+              ]}>
+                {formatMessageTime(chat.last_message_time || chat.created_at)}
+              </Text>
+              {chat.unread_count > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadText}>{chat.unread_count}</Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
         </Animated.View>
       </GestureDetector>
@@ -252,6 +287,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  avatarImagePlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   chatInfo: {
     flex: 1,
   },
@@ -265,13 +307,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
+  chatMeta: {
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
   chatTime: {
     fontSize: 12,
     color: '#999',
+    marginBottom: 4,
   },
   chatTimeUnread: {
     color: '#0066FF',
     fontWeight: '600',
+  },
+  unreadBadge: {
+    backgroundColor: '#0066FF',
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadText: {
+    color: '#FFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   emptyContainer: {
     flex: 1,

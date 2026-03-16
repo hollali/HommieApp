@@ -27,7 +27,9 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayoutNav() {
+  const { user } = useAuth();
   const [fontsLoaded] = useFonts({});
+  
   useEffect(() => {
     // Initialize mock data on app start
     initializeMockData().catch(console.error);
@@ -43,6 +45,17 @@ export default function RootLayoutNav() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    // Register push token when user is available
+    if (user?.id) {
+      notificationService.registerPushToken(user.id).then((success) => {
+        if (success) {
+          console.log('Push token registered for user:', user.id);
+        }
+      });
+    }
+  }, [user?.id]);
 
   useEffect(() => {
     if (fontsLoaded) {

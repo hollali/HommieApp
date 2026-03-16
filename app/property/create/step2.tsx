@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { getCurrentLocation, geocodeAddress } from '../../../lib/locationService';
 import { isSupabaseConfigured } from '../../../lib/supabase';
 import { getMockProfile } from '../../../lib/mockAuth';
+import { propertyService } from '../../../lib/propertyService';
 import ImageUpload from '../../../components/ImageUpload';
 
 export default function PropertyCreateStep2Screen() {
@@ -106,8 +107,9 @@ export default function PropertyCreateStep2Screen() {
 
     setLoading(true);
     try {
-      // Save property with mock data
-      const property = await saveProperty({
+      const imageUris = formStep1.images?.map((img: any) => img.uri) || [];
+      
+      const property = await propertyService.createProperty({
         owner_id: user.id,
         title: formStep1.title,
         description: formStep1.description || null,
@@ -124,15 +126,10 @@ export default function PropertyCreateStep2Screen() {
         furnished: formStep1.furnished,
         parking: formStep1.parking,
         amenities,
-        status: 'pending',
-        is_available: false,
-        images: images.map(img => img.url), // Store image URLs
-      });
+      }, imageUris);
 
-      // Save images to mock storage (in real app, upload to Supabase Storage)
-      // For now, we'll just store the URIs
-      if (images && images.length > 0) {
-        console.log('Images saved:', images.length);
+      if (!property) {
+          throw new Error('Failed to create property');
       }
 
       Alert.alert(
@@ -141,7 +138,7 @@ export default function PropertyCreateStep2Screen() {
         [
           {
             text: 'OK',
-            onPress: () => router.replace(`/property/${property.id}`),
+            onPress: () => router.replace(`/(tabs)/manage`),
           },
         ]
       );

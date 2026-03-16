@@ -173,7 +173,8 @@ class NotificationService {
   // Get device push token (for server-side push notifications)
   async getPushToken(): Promise<string | null> {
     if (!this.isInitialized) {
-      await this.initialize();
+      const initialized = await this.initialize();
+      if (!initialized) return null;
     }
 
     try {
@@ -182,6 +183,33 @@ class NotificationService {
     } catch (error) {
       console.error('Failed to get push token:', error);
       return null;
+    }
+  }
+
+  // Register push token with Supabase
+  async registerPushToken(userId: string): Promise<boolean> {
+    try {
+      const token = await this.getPushToken();
+      if (!token) return false;
+
+      const { supabase, isSupabaseConfigured } = await import('./supabase');
+      if (!isSupabaseConfigured) return false;
+
+      const { error } = await supabase
+        .from('users')
+        .update({ push_token: token })
+        .eq('id', userId);
+
+      if (error) {
+          console.warn('Could not save push token:', error.message);
+          return false;
+      }
+
+      console.log('Push token successfully registered in Supabase');
+      return true;
+    } catch (error) {
+      console.error('Failed to register push token:', error);
+      return false;
     }
   }
 

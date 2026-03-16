@@ -121,11 +121,6 @@ export default function PropertyDetailsScreen() {
 
   const handleMessageOwner = () => {
     if (!property) return;
-    // Only allow messaging for agents/landlords (not Airbnb hosts)
-    if (property.owner?.role === 'airbnb_host' || property.type === 'airbnb') {
-      Alert.alert('Contact disabled', 'Airbnb hosts are booked in-app only.');
-      return;
-    }
     if (!user) {
       Alert.alert('Sign In Required', 'Please sign in to message the owner.');
       router.push('/(auth)/login');
@@ -679,34 +674,46 @@ export default function PropertyDetailsScreen() {
                   </Text>
                 </View>
               </View>
-              <View style={styles.ownerActions}>
-                {!isAirbnb && (
-                  <>
-                    <TouchableOpacity style={styles.ownerContactButton} onPress={handleCallOwner}>
-                      <Ionicons name="call-outline" size={20} color="#4560F7" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.ownerContactButton} onPress={handleWhatsAppOwner}>
-                      <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.ownerContactButton} onPress={handleMessageOwner}>
-                      <Ionicons name="chatbubble-ellipses-outline" size={20} color="#4560F7" />
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
+              {/* Individual contact buttons removed in favor of global action bar */}
             </View>
           </View>
         </View>
       </ScrollView>
 
-      {/* Airbnb Reserve */}
-      {isAirbnb && (
-        <View style={styles.actionBar}>
-          <TouchableOpacity style={styles.bookButton} onPress={handleReserve}>
-            <Text style={styles.bookButtonText}>Reserve</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* Global Action Bar */}
+      <View style={styles.actionBar}>
+        {isAirbnb ? (
+          <>
+            <TouchableOpacity 
+              style={styles.messageButton} 
+              onPress={handleMessageOwner}
+            >
+              <Ionicons name="chatbubble-outline" size={20} color="#0066FF" />
+              <Text style={[styles.messageButtonText, { marginLeft: 8 }]}>Message Host</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.bookButton} onPress={handleReserve}>
+              <Text style={styles.bookButtonText}>Reserve</Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <>
+            <TouchableOpacity 
+              style={styles.messageButton} 
+              onPress={handleCallOwner}
+            >
+              <Ionicons name="call-outline" size={20} color="#0066FF" />
+              <Text style={[styles.messageButtonText, { marginLeft: 8 }]}>Call</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.bookButton, { backgroundColor: '#0066FF' }]} 
+              onPress={handleMessageOwner}
+            >
+              <Ionicons name="chatbubble-outline" size={20} color="#FFF" />
+              <Text style={[styles.bookButtonText, { marginLeft: 8 }]}>Message Owner</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
 
       {/* Full Screen Image Viewer */}
       {selectedImageIndex !== null && property.property_images && property.property_images.length > 0 && (
