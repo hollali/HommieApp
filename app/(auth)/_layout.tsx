@@ -11,6 +11,7 @@ export default function AuthLayout() {
       <Stack.Screen name="reset-password" />
       <Stack.Screen name="email-verification" />
       <Stack.Screen name="signup" />
+      <Stack.Screen name="oauth" />
       <Stack.Screen name="phone-otp" />
       <Stack.Screen name="price-range" />
       <Stack.Screen name="location-search" />

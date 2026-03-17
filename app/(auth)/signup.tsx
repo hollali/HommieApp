@@ -119,9 +119,7 @@ export default function SignupScreen() {
             : appleOAuth;
 
       // Create redirect URL with proper scheme
-      const redirectUrl = Linking.createURL("/oauth", {
-        scheme: "hommie",
-      });
+      const redirectUrl = Linking.createURL("/oauth");
 
       console.log(`Starting ${provider} OAuth with redirect:`, redirectUrl);
 

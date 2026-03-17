@@ -171,7 +171,7 @@ function PropertyItem({ property }: any) {
   return (
     <TouchableOpacity style={styles.propertyItem}>
       <Image 
-        source={imageUrl ? { uri: imageUrl } : require('../../assets/images/placeholder.png')} 
+        source={imageUrl ? { uri: imageUrl } : require('../../assets/property-placeholder.png')} 
         style={styles.propertyImage} 
       />
       <View style={styles.propertyInfo}>
