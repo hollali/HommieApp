@@ -145,9 +145,7 @@ export default function LoginScreen() {
             : appleOAuth;
 
       // Create a dedicated OAuth callback URL
-      const redirectUrl = Linking.createURL("/oauth", {
-        scheme: "hommie",
-      });
+      const redirectUrl = Linking.createURL("/oauth");
 
       console.log(`Starting ${provider} OAuth with redirect:`, redirectUrl);
 
@@ -275,7 +273,13 @@ export default function LoginScreen() {
         {/* Back Button */}
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(auth)/onboarding");
+            }
+          }}
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>

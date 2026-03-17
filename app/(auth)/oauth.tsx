@@ -4,16 +4,22 @@ import { useRouter } from "expo-router";
 import { useAuth } from "@clerk/clerk-expo";
 
 export default function OAuthCallback() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    if (!isLoaded) return;
+
     if (isSignedIn) {
       router.replace("/(tabs)/home");
     } else {
-      router.replace("/(auth)/login");
+      // Small delay to ensure Clerk has processed the session
+      const timeout = setTimeout(() => {
+        router.replace("/(auth)/login");
+      }, 2000);
+      return () => clearTimeout(timeout);
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, isLoaded]);
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
