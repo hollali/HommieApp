@@ -41,7 +41,7 @@ export const createClerkSupabaseClient = (clerkToken: string | null) => {
     {
       global: {
         headers: {
-          Authorization: clerkToken ? `Bearer ${clerkToken}` : undefined,
+          ...(clerkToken ? { Authorization: `Bearer ${clerkToken}` } : {}),
         },
       },
       auth: {

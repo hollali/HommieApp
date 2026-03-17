@@ -15,6 +15,9 @@ import {
   TransactionType,
   PaymentMethod,
   Payout,
+  Booking,
+  SupportTicket,
+  AdminLog,
 } from './types';
 import {
   getMockUsers,
@@ -90,6 +93,18 @@ function normalizeProperty(property: any): Property {
     featured_until: property.featured_until ?? null,
     boosted_until: property.boosted_until ?? null,
     verification_fee_paid: property.verification_fee_paid ?? false,
+  };
+}
+
+function normalizeBooking(booking: any): Booking {
+  return {
+    id: booking.id,
+    tenant_id: booking.tenant_id,
+    property_id: booking.property_id,
+    scheduled_date: booking.scheduled_date,
+    status: booking.status,
+    created_at: booking.created_at,
+    updated_at: booking.updated_at,
   };
 }
 
@@ -231,6 +246,19 @@ export async function getPayouts(): Promise<Payout[]> {
   return data;
 }
 
+export async function getBookings(): Promise<Booking[]> {
+  const data = await safeSelect<Booking>('bookings');
+  if (!data) return [];
+  return data.map(normalizeBooking);
+}
+
+export async function getSupportTickets(): Promise<SupportTicket[]> {
+  const { getMockSupportTickets } = await import('./mockData');
+  const data = await safeSelect<SupportTicket>('support_tickets');
+  if (!data) return getMockSupportTickets();
+  return data;
+}
+
 export async function updatePayout(payoutId: string, updates: Partial<Payout>) {
   if (!isSupabaseConfigured) return;
   await supabase.from('payouts').update(updates).eq('id', payoutId);
@@ -244,12 +272,17 @@ export async function getFeaturedBoosts(): Promise<FeaturedBoost[]> {
 
 export async function addAdminLog(input: {
   action: string;
-  entity_type: string;
+  entity_type: AdminLog['entity_type'];
   entity_id: string;
   details?: Record<string, any>;
   admin_id?: string;
+  severity?: AdminLog['severity'];
+  category?: AdminLog['category'];
 }) {
   const adminId = input.admin_id || 'admin_1';
+  const severity = input.severity || 'low';
+  const category = input.category || 'moderation';
+
   if (!isSupabaseConfigured) {
     addMockAdminLog({
       admin_id: adminId,
@@ -257,6 +290,8 @@ export async function addAdminLog(input: {
       entity_type: input.entity_type,
       entity_id: input.entity_id,
       details: input.details || {},
+      severity,
+      category,
     });
     return;
   }
@@ -267,6 +302,8 @@ export async function addAdminLog(input: {
       entity_type: input.entity_type,
       entity_id: input.entity_id,
       details: input.details || {},
+      severity,
+      category,
     },
   ]);
 }
@@ -325,7 +362,11 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     return getMockRevenueStats();
   }
 
-  const transactions = await getTransactions();
+  const [transactions, bookings] = await Promise.all([
+    getTransactions(),
+    getBookings()
+  ]);
+
   const completed = transactions.filter((t) => t.status === 'completed');
   const total = completed.reduce((sum, t) => sum + (t.amount || 0), 0);
 
@@ -354,5 +395,22 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     payouts_total: payoutsTotal,
     transaction_count: transactions.length,
     featured_listings_count: (await getFeaturedBoosts()).filter((b) => b.type === 'featured').length,
+    total_bookings: bookings.length
+  };
+}
+
+export async function getAnalyticsData() {
+  const [properties, users, transactions, bookings] = await Promise.all([
+    getProperties(),
+    getUsers(),
+    getTransactions(),
+    getBookings()
+  ]);
+
+  return {
+    properties,
+    users,
+    transactions,
+    bookings
   };
 }

@@ -12,6 +12,7 @@ export default function SettingsPage() {
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [reportAlerts, setReportAlerts] = useState(true);
   const [approvalAlerts, setApprovalAlerts] = useState(true);
+  const [supportAlerts, setSupportAlerts] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export default function SettingsPage() {
         setEmailNotifications(parsed.emailNotifications ?? true);
         setReportAlerts(parsed.reportAlerts ?? true);
         setApprovalAlerts(parsed.approvalAlerts ?? true);
+        setSupportAlerts(parsed.supportAlerts ?? true);
       } catch {
         // ignore malformed storage
       }
@@ -35,6 +37,7 @@ export default function SettingsPage() {
       emailNotifications,
       reportAlerts,
       approvalAlerts,
+      supportAlerts,
     };
     localStorage.setItem('hommie_admin_settings', JSON.stringify(payload));
     setTimeout(() => {
@@ -204,6 +207,18 @@ export default function SettingsPage() {
                   className="w-5 h-5 accent-primary rounded cursor-pointer"
                   checked={approvalAlerts}
                   onChange={(e) => setApprovalAlerts(e.target.checked)}
+                />
+              </label>
+              <label className="flex items-center justify-between p-4 bg-background rounded-xl border border-transparent hover:border-border transition-all cursor-pointer">
+                <div>
+                  <div className="font-semibold text-text-primary">Support Ticket Alerts</div>
+                  <div className="text-sm text-text-secondary">Notify me of new critical support requests</div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="w-5 h-5 accent-primary rounded cursor-pointer"
+                  checked={supportAlerts}
+                  onChange={(e) => setSupportAlerts(e.target.checked)}
                 />
               </label>
             </div>
