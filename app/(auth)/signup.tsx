@@ -100,11 +100,10 @@ export default function SignupScreen() {
   };
 
   const onSocialAuth = async (provider: "google" | "facebook" | "apple") => {
-    // Remove this check
-    // if (!agreedToTerms) {
-    //   Alert.alert("Error", "Please agree to the Terms & Conditions");
-    //   return;
-    // }
+    /*if (!agreedToTerms) {
+      Alert.alert("Error", "Please agree to the Terms & Conditions");
+      return;
+    }*/
 
     setLoading(true);
 
@@ -143,7 +142,7 @@ export default function SignupScreen() {
 
         // Check if session is active
         console.log("Session created successfully");
-        router.replace("/(tabs)/home)");
+        router.replace("/(tabs)/home");
       } else if (oauthSignUp) {
         // Handle sign-up specific logic
         console.log("OAuth SignUp status:", oauthSignUp.status);
