@@ -9,6 +9,24 @@ const mockKey = 'mock-anon-key-for-development-only';
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+/**
+ * Creates a Supabase client that uses a Clerk JWT for authentication.
+ * This allows using Supabase RLS (Row Level Security) with Clerk users.
+ */
+export const createClerkSupabaseClient = (clerkToken?: string | null) => {
+  return createClient(
+    supabaseUrl || mockUrl,
+    supabaseAnonKey || mockKey,
+    {
+      global: {
+        headers: {
+          Authorization: clerkToken ? `Bearer ${clerkToken}` : undefined,
+        },
+      },
+    }
+  );
+};
+
 export const supabase = createClient(
   supabaseUrl || mockUrl,
   supabaseAnonKey || mockKey
