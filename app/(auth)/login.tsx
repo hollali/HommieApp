@@ -52,7 +52,7 @@ export default function LoginScreen() {
     if (isSignedIn) {
       router.replace("/(tabs)/home");
     }
-  }, [isSignedIn]);
+  }, [isSignedIn, router]);
 
   useEffect(() => {
     setEmail("");

@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router';
+import { Stack } from "expo-router";
 
 export default function AuthLayout() {
   return (
@@ -12,6 +12,7 @@ export default function AuthLayout() {
       <Stack.Screen name="email-verification" />
       <Stack.Screen name="signup" />
       <Stack.Screen name="phone-otp" />
+      <Stack.Screen name="oauth" />
       <Stack.Screen name="price-range" />
       <Stack.Screen name="location-search" />
       <Stack.Screen name="notifications-permission" />
@@ -19,4 +20,3 @@ export default function AuthLayout() {
     </Stack>
   );
 }
-

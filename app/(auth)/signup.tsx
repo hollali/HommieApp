@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignUp, useOAuth, useAuth } from "@clerk/clerk-expo";
+import { useSignUp, useOAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import * as WebBrowser from "expo-web-browser";
@@ -31,8 +31,7 @@ WebBrowser.maybeCompleteAuthSession();
 export default function SignupScreen() {
   useWarmUpBrowser();
 
-  const { isLoaded, signUp, setActive } = useSignUp();
-  const { getToken } = useAuth();
+  const { isLoaded, signUp } = useSignUp();
 
   // Initialize OAuth hooks
   const { startOAuthFlow: googleOAuth } = useOAuth({
@@ -145,14 +144,8 @@ export default function SignupScreen() {
         }
 
         // Check if session is active
-        const token = await getToken();
-        if (token) {
-          console.log("Session created successfully");
-          router.replace("/(tabs)/home)");
-        } else {
-          console.log("Session created but no token yet");
-          router.replace("/(auth)/login)"); // Fallback to login if session isn't active yet
-        }
+        console.log("Session created successfully");
+        router.replace("/(tabs)/home)");
       } else if (oauthSignUp) {
         // Handle sign-up specific logic
         console.log("OAuth SignUp status:", oauthSignUp.status);
@@ -165,10 +158,10 @@ export default function SignupScreen() {
               params: { email: oauthSignUp.emailAddress, signup: "true" },
             });
           } else {
-            router.push("/(tabs)/home)"); // Fallback route after sign-up
+            router.push("/(tabs)/home"); // Fallback route after sign-up
           }
         } else {
-          router.replace("/(tabs)/home)"); // Fallback route after sign-up
+          router.replace("/(tabs)/home"); // Fallback route after sign-up
         }
       } else {
         console.log("No session created, OAuth flow incomplete");
