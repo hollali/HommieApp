@@ -314,6 +314,43 @@ CREATE TRIGGER tr_notify_user_verification_update
 AFTER UPDATE OF verification_status ON public.users
 FOR EACH ROW EXECUTE FUNCTION notify_user_verification_update();
 
+-- 4d. PAYOUT NOTIFICATION FUNCTION
+CREATE OR REPLACE FUNCTION notify_user_payout_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Only notify if the status actually changed
+    IF (OLD.status IS DISTINCT FROM NEW.status) THEN
+        -- Paid Notification
+        IF NEW.status = 'paid' THEN
+            INSERT INTO public.notifications (user_id, type, title, message, metadata)
+            VALUES (
+                NEW.user_id, 
+                'payment', 
+                'Payout Successful! 💰', 
+                'Your withdrawal of ' || NEW.amount || ' has been processed successfully.',
+                jsonb_build_object('payout_id', NEW.id, 'status', 'paid', 'timestamp', NOW())
+            );
+        -- Rejection Notification
+        ELSIF NEW.status = 'rejected' THEN
+            INSERT INTO public.notifications (user_id, type, title, message, metadata)
+            VALUES (
+                NEW.user_id, 
+                'payment', 
+                'Payout Request Update', 
+                'Your payout request was rejected. Reason: ' || COALESCE(NEW.rejection_reason, 'No reason provided.'),
+                jsonb_build_object('payout_id', NEW.id, 'status', 'rejected', 'timestamp', NOW())
+            );
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS tr_notify_user_payout_update ON public.payouts;
+CREATE TRIGGER tr_notify_user_payout_update
+AFTER UPDATE OF status ON public.payouts
+FOR EACH ROW EXECUTE FUNCTION notify_user_payout_update();
+
 -- 5. ROW LEVEL SECURITY (RLS)
 
 -- Enable RLS on all tables

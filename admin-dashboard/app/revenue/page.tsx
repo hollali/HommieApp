@@ -134,6 +134,12 @@ export default function RevenuePage() {
                 icon={CreditCard}
                 color="primary"
               />
+              <StatCard
+                title="Total Paid to Hosts"
+                value={`₵${stats.payouts_total.toLocaleString()}`}
+                icon={DollarSign}
+                color="error"
+              />
             </div>
           )
         )}

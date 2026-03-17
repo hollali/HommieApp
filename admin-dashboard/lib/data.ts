@@ -14,6 +14,7 @@ import {
   TransactionStatus,
   TransactionType,
   PaymentMethod,
+  Payout,
 } from './types';
 import {
   getMockUsers,
@@ -224,6 +225,17 @@ export async function getTransactions(): Promise<Transaction[]> {
   return data;
 }
 
+export async function getPayouts(): Promise<Payout[]> {
+  const data = await safeSelect<Payout>('payouts');
+  if (!data) return []; // Mock payouts could be added to mockData.ts if needed
+  return data;
+}
+
+export async function updatePayout(payoutId: string, updates: Partial<Payout>) {
+  if (!isSupabaseConfigured) return;
+  await supabase.from('payouts').update(updates).eq('id', payoutId);
+}
+
 export async function getFeaturedBoosts(): Promise<FeaturedBoost[]> {
   const data = await safeSelect<FeaturedBoost>('featured_boosts');
   if (!data) return getMockFeaturedBoosts();
@@ -304,6 +316,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     verifiedUsers: users.filter((u) => u.verification_status === 'verified').length,
     newUsersToday: users.filter((u) => u.created_at && isToday(u.created_at)).length,
     newListingsToday: properties.filter((p) => p.created_at && isToday(p.created_at)).length,
+    pendingPayouts: (await getPayouts()).filter((p) => p.status === 'pending').length,
   };
 }
 
@@ -325,6 +338,11 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     .filter((t) => t.created_at && new Date(t.created_at).toDateString() === today.toDateString())
     .reduce((sum, t) => sum + (t.amount || 0), 0);
 
+  const payouts = await getPayouts();
+  const payoutsTotal = payouts
+    .filter((p) => p.status === 'paid')
+    .reduce((sum, p) => sum + (p.amount || 0), 0);
+
   return {
     total_revenue: total,
     monthly_revenue: monthly,
@@ -333,6 +351,7 @@ export async function getRevenueStats(): Promise<RevenueStats> {
     subscriptions_revenue: monthly,
     featured_revenue: featured,
     verification_revenue: verification,
+    payouts_total: payoutsTotal,
     transaction_count: transactions.length,
     featured_listings_count: (await getFeaturedBoosts()).filter((b) => b.type === 'featured').length,
   };

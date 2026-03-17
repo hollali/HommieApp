@@ -22,7 +22,7 @@ export type ReportReason = 'scam' | 'incorrect_info' | 'inappropriate_content' |
 export type SubscriptionPlan = 'free' | 'basic' | 'pro' | 'enterprise';
 export type SubscriptionStatus = 'active' | 'expired' | 'cancelled';
 export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'refunded';
-export type TransactionType = 'subscription' | 'featured_listing' | 'boost' | 'verification' | 'commission' | 'booking' | 'escrow_payout';
+export type TransactionType = 'subscription' | 'featured_listing' | 'boost' | 'verification' | 'commission' | 'booking' | 'payout';
 export type PaymentMethod = 'paystack' | 'mobile_money' | 'card' | 'bank_transfer';
 
 export interface User {
@@ -124,6 +124,7 @@ export interface DashboardStats {
   verifiedUsers: number;
   newUsersToday: number;
   newListingsToday: number;
+  pendingPayouts: number;
 }
 
 export interface Subscription {
@@ -183,6 +184,23 @@ export interface FeaturedBoost {
   property?: Property;
 }
 
+
+export interface Payout {
+  id: string;
+  user_id: string;
+  amount: number;
+  method: 'bank' | 'mobile_money';
+  account_details: {
+    account_number: string;
+    provider: string;
+  };
+  status: 'pending' | 'paid' | 'rejected';
+  requested_at: string;
+  paid_at?: string | null;
+  admin_notes?: string | null;
+  user?: User;
+}
+
 export interface RevenueStats {
   total_revenue: number;
   monthly_revenue: number;
@@ -190,6 +208,7 @@ export interface RevenueStats {
   subscriptions_revenue: number;
   featured_revenue: number;
   verification_revenue: number;
+  payouts_total: number;
   transaction_count: number;
   active_subscriptions: number;
   featured_listings_count: number;

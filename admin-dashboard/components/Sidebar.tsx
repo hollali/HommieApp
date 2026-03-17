@@ -13,11 +13,11 @@ const navItems = [
   { href: '/users', label: 'Users', icon: Users },
   { href: '/properties', label: 'Properties', icon: Building2 },
   { href: '/verification', label: 'Verification', icon: UserCheck },
-  { href: '/revenue', label: 'Revenue', icon: DollarSign },
+  { href: '/payouts', label: 'Payouts', icon: DollarSign },
+  { href: '/revenue', label: 'Revenue', icon: BarChart3 },
   { href: '/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/featured-listings', label: 'Featured Listings', icon: Star },
   { href: '/reports', label: 'Reports', icon: Flag },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/activity-logs', label: 'Activity Logs', icon: Clock },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
