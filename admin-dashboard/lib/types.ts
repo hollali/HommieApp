@@ -22,7 +22,20 @@ export type ReportReason = 'scam' | 'incorrect_info' | 'inappropriate_content' |
 export type SubscriptionPlan = 'free' | 'basic' | 'pro' | 'enterprise';
 export type SubscriptionStatus = 'active' | 'expired' | 'cancelled';
 export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'refunded';
-export type TransactionType = 'subscription' | 'featured_listing' | 'boost' | 'verification' | 'commission' | 'booking' | 'escrow_payout';
+export type TransactionType = 'subscription' | 'featured_listing' | 'boost' | 'verification' | 'commission' | 'booking' | 'payout' | 'support';
+
+export interface SupportTicket {
+  id: string;
+  user_id: string;
+  subject: string;
+  message: string;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  category: 'billing' | 'technical' | 'account' | 'listing' | 'other';
+  created_at: string;
+  updated_at: string;
+  user?: User;
+}
 export type PaymentMethod = 'paystack' | 'mobile_money' | 'card' | 'bank_transfer';
 
 export interface User {
@@ -89,10 +102,13 @@ export interface AdminLog {
   id: string;
   admin_id: string;
   action: string;
-  entity_type: string;
+  entity_type: 'property' | 'user' | 'report' | 'payout' | 'verification' | 'system' | 'support';
   entity_id: string;
   details: Record<string, any> | null;
   timestamp: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  category: 'security' | 'moderation' | 'financial' | 'support' | 'system';
+  ip_address?: string;
   admin?: Admin;
 }
 
@@ -124,6 +140,8 @@ export interface DashboardStats {
   verifiedUsers: number;
   newUsersToday: number;
   newListingsToday: number;
+  pendingPayouts: number;
+  openTickets?: number;
 }
 
 export interface Subscription {
@@ -183,6 +201,35 @@ export interface FeaturedBoost {
   property?: Property;
 }
 
+
+export interface Payout {
+  id: string;
+  user_id: string;
+  amount: number;
+  method: 'bank' | 'mobile_money';
+  account_details: {
+    account_number: string;
+    provider: string;
+  };
+  status: 'pending' | 'paid' | 'rejected';
+  requested_at: string;
+  paid_at?: string | null;
+  admin_notes?: string | null;
+  user?: User;
+}
+
+export interface Booking {
+  id: string;
+  tenant_id: string;
+  property_id: string;
+  scheduled_date: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  created_at: string;
+  updated_at?: string;
+  tenant?: User;
+  property?: Property;
+}
+
 export interface RevenueStats {
   total_revenue: number;
   monthly_revenue: number;
@@ -190,7 +237,9 @@ export interface RevenueStats {
   subscriptions_revenue: number;
   featured_revenue: number;
   verification_revenue: number;
+  payouts_total: number;
   transaction_count: number;
   active_subscriptions: number;
   featured_listings_count: number;
+  total_bookings?: number;
 }

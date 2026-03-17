@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { AdminGuard } from './AdminGuard';
+import { NotificationCenter } from './NotificationCenter';
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useUser();
@@ -31,6 +32,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AdminGuard>
       <div className="min-h-screen bg-background flex">
+        <NotificationCenter />
         <Sidebar />
         <main className="flex-1 lg:ml-64 overflow-y-auto h-screen">
           <div className="max-w-7xl mx-auto p-6 pb-12">{children}</div>

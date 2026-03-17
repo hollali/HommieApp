@@ -24,6 +24,8 @@ import {
   FeaturedBoost,
   RevenueStats,
   PricingPlan,
+  SupportTicket,
+  Booking,
 } from './types';
 
 const STORAGE_KEYS = {
@@ -36,6 +38,7 @@ const STORAGE_KEYS = {
   SUBSCRIPTIONS: 'hommie_admin:subscriptions',
   TRANSACTIONS: 'hommie_admin:transactions',
   FEATURED_BOOSTS: 'hommie_admin:featured_boosts',
+  SUPPORT_TICKETS: 'hommie_admin:support_tickets',
 };
 
 // Initialize flag to prevent circular calls
@@ -81,6 +84,13 @@ export function initializeMockData() {
       const adminsData = localStorage.getItem(STORAGE_KEYS.ADMINS);
       const admins = adminsData ? JSON.parse(adminsData) : [];
       localStorage.setItem(STORAGE_KEYS.ADMIN_LOGS, JSON.stringify(generateMockAdminLogs(admins)));
+    }
+
+    // Support Tickets
+    if (!localStorage.getItem(STORAGE_KEYS.SUPPORT_TICKETS)) {
+      const usersData = localStorage.getItem(STORAGE_KEYS.USERS);
+      const users = usersData ? JSON.parse(usersData) : [];
+      localStorage.setItem(STORAGE_KEYS.SUPPORT_TICKETS, JSON.stringify(generateMockSupportTickets(users)));
     }
   } finally {
     isInitializing = false;
@@ -346,7 +356,7 @@ function generateMockReports(users: User[], properties: Property[]): Report[] {
 function generateMockAdminLogs(admins: Admin[]): AdminLog[] {
   const now = Date.now();
   const actions = ['approved_property', 'rejected_property', 'suspended_user', 'verified_property', 'resolved_report'];
-  const entityTypes = ['property', 'user', 'report'];
+  const entityTypes: AdminLog['entity_type'][] = ['property', 'user', 'report'];
 
   return Array.from({ length: 20 }, (_, i) => {
     const admin = admins[Math.floor(Math.random() * admins.length)];
@@ -354,6 +364,9 @@ function generateMockAdminLogs(admins: Admin[]): AdminLog[] {
     const entityType = entityTypes[Math.floor(Math.random() * entityTypes.length)];
     const createdHoursAgo = Math.floor(Math.random() * 72);
     const created = new Date(now - createdHoursAgo * 60 * 60 * 1000);
+
+    const severity: AdminLog['severity'] = action.includes('suspended') || action.includes('rejected') ? 'high' : 'medium';
+    const category: AdminLog['category'] = entityType === 'property' ? 'moderation' : 'moderation';
 
     return {
       id: `log_${i + 1}`,
@@ -363,7 +376,36 @@ function generateMockAdminLogs(admins: Admin[]): AdminLog[] {
       entity_id: `${entityType}_${Math.floor(Math.random() * 10) + 1}`,
       details: { action, timestamp: created.toISOString() },
       timestamp: created.toISOString(),
+      severity,
+      category,
       admin,
+    };
+  });
+}
+
+function generateMockSupportTickets(users: User[]): SupportTicket[] {
+  const now = Date.now();
+  const tenants = users.filter(u => u.role === 'tenant' || u.role === 'landlord' || u.role === 'agent');
+  const categories: SupportTicket['category'][] = ['billing', 'technical', 'account', 'listing', 'other'];
+  const priorities: SupportTicket['priority'][] = ['low', 'medium', 'high', 'critical'];
+  const statuses: SupportTicket['status'][] = ['open', 'in_progress', 'resolved', 'closed'];
+
+  return Array.from({ length: 15 }, (_, i) => {
+    const user = tenants[Math.floor(Math.random() * tenants.length)];
+    const createdDaysAgo = Math.floor(Math.random() * 30);
+    const created = i === 0 ? new Date() : new Date(now - createdDaysAgo * 24 * 60 * 60 * 1000);
+    
+    return {
+      id: `ticket_${i + 1}`,
+      user_id: user.id || 'system',
+      subject: i === 0 ? "URGENT: Payment failure on premium plan" : `Help needed with ${categories[i % categories.length]}`,
+      message: "I am having some trouble with my recent transaction. Can you please help me check if it went through? I've tried multiple times but the page keeps loading forever.",
+      status: i === 0 ? 'open' : statuses[i % statuses.length],
+      priority: i === 0 ? 'critical' : priorities[i % priorities.length],
+      category: categories[i % categories.length],
+      created_at: created.toISOString(),
+      updated_at: created.toISOString(),
+      user
     };
   });
 }
@@ -450,6 +492,20 @@ export function getMockAdminLogs(): AdminLog[] {
   }));
 }
 
+export function getMockSupportTickets(): SupportTicket[] {
+  if (typeof window === 'undefined') return [];
+  if (!localStorage.getItem(STORAGE_KEYS.SUPPORT_TICKETS)) {
+    initializeMockData();
+  }
+  const data = localStorage.getItem(STORAGE_KEYS.SUPPORT_TICKETS);
+  const tickets: SupportTicket[] = data ? JSON.parse(data) : [];
+  const users = getMockUsers();
+  return tickets.map(t => ({
+    ...t,
+    user: users.find(u => u.id === t.user_id)
+  }));
+}
+
 // Update Functions
 export function updateMockUser(userId: string, updates: Partial<User>): void {
   if (typeof window === 'undefined') return;
@@ -477,6 +533,8 @@ export function updateMockProperty(propertyId: string, updates: Partial<Property
     entity_type: 'property',
     entity_id: propertyId,
     details: updates,
+    severity: 'medium',
+    category: 'moderation'
   });
 }
 
@@ -500,6 +558,8 @@ export function updateMockReport(reportId: string, updates: Partial<Report>): vo
     entity_type: 'report',
     entity_id: reportId,
     details: updates,
+    severity: 'low',
+    category: 'moderation'
   });
 }
 
@@ -523,6 +583,7 @@ export function getDashboardStats(): DashboardStats {
   const users = getMockUsers();
   const properties = getMockProperties();
   const reports = getMockReports();
+  const tickets = getMockSupportTickets();
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
@@ -533,8 +594,12 @@ export function getDashboardStats(): DashboardStats {
     pendingApprovals: properties.filter((p) => p.status === 'pending').length,
     pendingReports: reports.filter((r) => r.status === 'pending').length,
     verifiedListings: properties.filter((p) => p.is_verified).length,
+    pendingVerifications: users.filter(u => u.verification_status === 'pending').length,
+    verifiedUsers: users.filter(u => u.verification_status === 'verified').length,
     newUsersToday: users.filter((u) => new Date(u.created_at) >= today).length,
     newListingsToday: properties.filter((p) => new Date(p.created_at) >= today).length,
+    pendingPayouts: 0,
+    openTickets: tickets.filter(t => t.status === 'open' || t.status === 'in_progress').length,
   };
 }
 
@@ -867,6 +932,7 @@ export function getRevenueStats(): RevenueStats {
     subscriptions_revenue: subscriptionsRevenue,
     featured_revenue: featuredRevenue,
     verification_revenue: verificationRevenue,
+    payouts_total: 0,
     transaction_count: completedTransactions.length,
     active_subscriptions: activeSubscriptions,
     featured_listings_count: featuredListings,

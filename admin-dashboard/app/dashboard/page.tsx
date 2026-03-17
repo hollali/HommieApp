@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { LoadingLogo } from '@/components/LoadingLogo';
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardStats, getAdminLogs } from '@/lib/data';
-import { Users, Building2, CheckCircle, Clock, Flag, TrendingUp } from 'lucide-react';
+import { Users, Building2, CheckCircle, Clock, Flag, TrendingUp, DollarSign, MessageSquare } from 'lucide-react';
 import { DashboardStats, AdminLog } from '@/lib/types';
 
 async function fetchDashboardStats(): Promise<DashboardStats> {
@@ -117,6 +117,12 @@ export default function DashboardPage() {
               color="error"
             />
             <StatCard
+              title="Open Tickets"
+              value={stats?.openTickets || 0}
+              icon={MessageSquare}
+              color="primary"
+            />
+            <StatCard
               title="Verified Listings"
               value={stats?.verifiedListings || 0}
               icon={CheckCircle}
@@ -145,6 +151,12 @@ export default function DashboardPage() {
               value={stats?.newListingsToday || 0}
               icon={Building2}
               color="primary"
+            />
+            <StatCard
+              title="Pending Payouts"
+              value={stats?.pendingPayouts || 0}
+              icon={DollarSign}
+              color="warning"
             />
           </div>
         )}
