@@ -13,7 +13,6 @@ export default function AuthLayout() {
       <Stack.Screen name="signup" />
       <Stack.Screen name="oauth" />
       <Stack.Screen name="phone-otp" />
-      <Stack.Screen name="oauth" />
       <Stack.Screen name="price-range" />
       <Stack.Screen name="location-search" />
       <Stack.Screen name="notifications-permission" />
