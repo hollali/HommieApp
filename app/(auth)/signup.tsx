@@ -28,6 +28,30 @@ export const useWarmUpBrowser = () => {
 
 WebBrowser.maybeCompleteAuthSession();
 
+const normalizeUsername = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 30);
+
+const buildUsernameCandidates = (email?: string | null, fullName?: string) => {
+  const emailPrefix = email?.split("@")[0] ?? "";
+  const namePrefix = fullName ?? "";
+
+  const base = normalizeUsername(namePrefix || emailPrefix || "user");
+
+  const nowSuffix = Date.now().toString().slice(-4);
+  const randomSuffix = Math.floor(100 + Math.random() * 900).toString();
+
+  return [
+    base,
+    normalizeUsername(`${base}_${nowSuffix}`),
+    normalizeUsername(`${base}_${randomSuffix}`),
+  ].filter(Boolean);
+};
+
 export default function SignupScreen() {
   useWarmUpBrowser();
 
@@ -148,14 +172,47 @@ export default function SignupScreen() {
         console.log("OAuth SignUp status:", oauthSignUp.status);
 
         if (oauthSignUp.status === "missing_requirements") {
-          // Email verification might be needed
-          if (oauthSignUp.emailAddress) {
+          const needsUsername = oauthSignUp.missingFields?.includes("username");
+
+          if (needsUsername) {
+            const candidates = buildUsernameCandidates(
+              oauthSignUp.emailAddress,
+              `${oauthSignUp.firstName ?? ""} ${oauthSignUp.lastName ?? ""}`.trim(),
+            );
+
+            let resolved = false;
+
+            for (const username of candidates) {
+              try {
+                const updatedSignUp = await oauthSignUp.update({ username });
+
+                if (updatedSignUp.status === "complete" && updatedSignUp.createdSessionId) {
+                  if (setActiveSession) {
+                    await setActiveSession({ session: updatedSignUp.createdSessionId });
+                  }
+                  router.replace("/(tabs)/home");
+                  resolved = true;
+                  break;
+                }
+              } catch (usernameError: any) {
+                console.log("Username candidate failed:", {
+                  username,
+                  message: usernameError?.errors?.[0]?.message ?? usernameError?.message,
+                });
+              }
+            }
+
+            if (!resolved) {
+              Alert.alert(
+                "Almost done",
+                "We couldn't finish Google sign up automatically. Please create a username to continue in Clerk settings.",
+              );
+            }
+          } else if (oauthSignUp.emailAddress) {
             router.push({
               pathname: "/email-verification",
               params: { email: oauthSignUp.emailAddress, signup: "true" },
             });
-          } else {
-            router.push("/(tabs)/home"); // Fallback route after sign-up
           }
         } else {
           router.replace("/(tabs)/home"); // Fallback route after sign-up
