@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignUp, useOAuth } from "@clerk/clerk-expo";
+import { useSignUp, useOAuth, useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import * as WebBrowser from "expo-web-browser";
@@ -55,6 +55,7 @@ export default function SignupScreen() {
   useWarmUpBrowser();
 
   const { isLoaded, signUp } = useSignUp();
+  const { isSignedIn } = useAuth();
 
   // Initialize OAuth hooks
   const { startOAuthFlow: googleOAuth } = useOAuth({
@@ -76,6 +77,12 @@ export default function SignupScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (isSignedIn) {
+      router.replace("/(tabs)/home");
+    }
+  }, [isSignedIn, router]);
 
   const handleSignup = async () => {
     if (!isLoaded) return;
@@ -123,6 +130,19 @@ export default function SignupScreen() {
   };
 
   const onSocialAuth = async (provider: "google" | "facebook" | "apple") => {
+    if (isSignedIn) {
+      Alert.alert("Already Signed In", "You already have an active session.", [
+        {
+          text: "Go to Home",
+          onPress: () => router.replace("/(tabs)/home"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]);
+      return;
+    }
     /*if (!agreedToTerms) {
       Alert.alert("Error", "Please agree to the Terms & Conditions");
       return;
@@ -191,9 +211,14 @@ export default function SignupScreen() {
                 username: generatedUsername,
               });
 
-              if (updatedSignUp.status === "complete" && updatedSignUp.createdSessionId) {
+              if (
+                updatedSignUp.status === "complete" &&
+                updatedSignUp.createdSessionId
+              ) {
                 if (setActiveSession) {
-                  await setActiveSession({ session: updatedSignUp.createdSessionId });
+                  await setActiveSession({
+                    session: updatedSignUp.createdSessionId,
+                  });
                 }
                 router.replace("/(tabs)/home");
                 return;
@@ -215,7 +240,10 @@ export default function SignupScreen() {
               try {
                 const updatedSignUp = await oauthSignUp.update({ username });
 
-                if (updatedSignUp.status === "complete" && updatedSignUp.createdSessionId) {
+                if (
+                  updatedSignUp.status === "complete" &&
+                  updatedSignUp.createdSessionId
+                ) {
                   if (setActiveSession) {
                     await setActiveSession({
                       session: updatedSignUp.createdSessionId,
@@ -267,6 +295,25 @@ export default function SignupScreen() {
       if (err.message?.includes("cancelled")) {
         // User cancelled the flow, do nothing
         console.log("User cancelled OAuth");
+      } else if (
+        err.errors?.[0]?.code === "session_exists" ||
+        err.message?.includes("already signed in") ||
+        err.message?.includes("session already exists")
+      ) {
+        Alert.alert(
+          "Session Already Exists",
+          "You already have an active session.",
+          [
+            {
+              text: "Go to Home",
+              onPress: () => router.replace("/(tabs)/home"),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ],
+        );
       } else {
         Alert.alert(
           "Authentication Failed",
