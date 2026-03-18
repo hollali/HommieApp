@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { useState, useEffect } from 'react';
+import Constants from 'expo-constants';
 
 export interface NotificationData {
   title: string;
@@ -19,6 +20,15 @@ export interface ScheduledNotification {
 
 class NotificationService {
   private isInitialized = false;
+
+  private getExpoProjectId(): string | null {
+    return (
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      Constants.easConfig?.projectId ||
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID ||
+      null
+    );
+  }
 
   async initialize(): Promise<boolean> {
     try {
@@ -178,7 +188,19 @@ class NotificationService {
     }
 
     try {
-      const { data } = await Notifications.getExpoPushTokenAsync();
+      const projectId = this.getExpoProjectId();
+
+      if (!projectId) {
+        console.warn(
+          'Push token skipped: missing EAS projectId. Set expo.extra.eas.projectId in app.json (or EXPO_PUBLIC_EAS_PROJECT_ID).'
+        );
+        return null;
+      }
+
+      const { data } = await Notifications.getExpoPushTokenAsync({
+        projectId,
+      });
+
       return data;
     } catch (error) {
       console.error('Failed to get push token:', error);
@@ -201,8 +223,8 @@ class NotificationService {
         .eq('id', userId);
 
       if (error) {
-          console.warn('Could not save push token:', error.message);
-          return false;
+        console.warn('Could not save push token:', error.message);
+        return false;
       }
 
       console.log('Push token successfully registered in Supabase');
@@ -278,7 +300,7 @@ class NotificationService {
     bookingId?: string
   ): Promise<string | null> {
     const trigger = { date: new Date(bookingDate.getTime() - 60 * 60 * 1000) } as Notifications.NotificationTriggerInput; // 1 hour before
-    
+
     return this.scheduleNotification({
       title,
       body: message,
@@ -295,7 +317,7 @@ class NotificationService {
     paymentId?: string
   ): Promise<string | null> {
     const trigger = { date: reminderDate } as Notifications.NotificationTriggerInput;
-    
+
     return this.scheduleNotification({
       title,
       body: message,
@@ -317,7 +339,7 @@ export const useNotifications = () => {
     const initializeNotifications = async () => {
       const initialized = await notificationService.initialize();
       setIsInitialized(initialized);
-      
+
       const status = await notificationService.getPermissionStatus();
       setPermissionStatus(status);
     };

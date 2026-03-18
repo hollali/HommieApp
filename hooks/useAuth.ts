@@ -1,5 +1,4 @@
-
-import { useAuth as useClerkAuth, useUser as useClerkUser, useSession as useClerkSession } from '@clerk/clerk-expo';
+import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-expo';
 import { useState, useEffect } from 'react';
 import { User } from '../lib/types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -7,7 +6,6 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 export function useAuth() {
   const { isLoaded: authLoaded, userId, getToken, signOut: clerkSignOut } = useClerkAuth();
   const { isLoaded: userLoaded, user: clerkUser } = useClerkUser();
-  const { isLoaded: sessionLoaded, session: clerkSession } = useClerkSession();
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
