@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,6 @@ import { useSignIn, useOAuth, useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import * as LocalAuthentication from "expo-local-authentication";
-import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
@@ -23,9 +22,6 @@ interface ClerkError {
   message?: string;
   code?: string;
 }
-
-const BIOMETRIC_EMAIL_KEY = "auth_email";
-const BIOMETRIC_PASSWORD_KEY = "auth_password";
 
 const useWarmUpBrowser = () => {
   useEffect(() => {
@@ -39,7 +35,7 @@ const useWarmUpBrowser = () => {
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
-  useWarmUpBrowser();
+  //useWarmUpBrowser();
 
   const { signIn, setActive, isLoaded } = useSignIn();
   const { isSignedIn } = useAuth();
@@ -55,7 +51,6 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const isMountedRef = useRef(true);
   const router = useRouter();
 
   // Redirect if already signed in
@@ -66,26 +61,39 @@ export default function LoginScreen() {
   }, [isSignedIn, router]);
 
   useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-    };
+    setEmail("");
+    setPassword("");
+    setShowPassword(false);
   }, []);
 
-  const isValidEmail = (emailValue: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(emailValue);
-  };
+  const handleLogin = async () => {
+    if (!isLoaded) return;
+    if (!email || !password) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
 
-  const isCancelledAuthError = (error: ClerkError) =>
-    error.code === "CANCELLED" || error.message?.toLowerCase().includes("cancelled");
+    setLoading(true);
+    try {
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
 
-  const handleAuthError = useCallback(
-    (error: ClerkError, context = "Authentication") => {
-      if (isCancelledAuthError(error)) {
-        console.log("User cancelled auth flow");
-        return;
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.replace("/(tabs)/home");
+      } else {
+        console.warn("Incomplete sign in status:", result.status);
+        Alert.alert(
+          "Login",
+          "Please complete the login process or check your email.",
+        );
       }
+    } catch (error: any) {
+      console.error("Login error:", error);
 
+      // Handle specific error cases
       if (error.errors?.[0]?.code === "session_exists") {
         Alert.alert(
           "Already Signed In",
@@ -101,95 +109,15 @@ export default function LoginScreen() {
             },
           ],
         );
-        return;
-      }
-
-      Alert.alert(
-        `${context} Failed`,
-        error.errors?.[0]?.message || error.message || `${context} failed. Please try again.`,
-      );
-    },
-    [router],
-  );
-
-  const askToSaveCredentials = async () =>
-    new Promise<boolean>((resolve) => {
-      Alert.alert(
-        "Enable Biometric Login?",
-        "Save your credentials securely for biometric login on this device.",
-        [
-          { text: "Not Now", style: "cancel", onPress: () => resolve(false) },
-          { text: "Enable", onPress: () => resolve(true) },
-        ],
-      );
-    });
-
-  const saveCredentialsForBiometric = async (
-    emailValue: string,
-    passwordValue: string,
-  ) => {
-    await SecureStore.setItemAsync(BIOMETRIC_EMAIL_KEY, emailValue.trim());
-    await SecureStore.setItemAsync(BIOMETRIC_PASSWORD_KEY, passwordValue);
-  };
-
-  const attemptCredentialLogin = async (
-    emailValue: string,
-    passwordValue: string,
-    options?: { promptToSaveCredentials?: boolean },
-  ) => {
-    if (!isLoaded || loading) return;
-
-    setLoading(true);
-    try {
-      const result = await signIn.create({
-        identifier: emailValue.trim(),
-        password: passwordValue,
-      });
-
-      if (result.status === "complete") {
-        await setActive({ session: result.createdSessionId });
-
-        if (options?.promptToSaveCredentials) {
-          const shouldSave = await askToSaveCredentials();
-          if (shouldSave) {
-            await saveCredentialsForBiometric(emailValue, passwordValue);
-          }
-        }
-
-        if (isMountedRef.current) {
-          router.replace("/(tabs)/home");
-        }
       } else {
-        console.warn("Incomplete sign in status:", result.status);
         Alert.alert(
-          "Login",
-          "Please complete the login process or check your email.",
+          "Login Error",
+          error.errors?.[0]?.message || error.message || "Failed to login",
         );
       }
-    } catch (error: unknown) {
-      handleAuthError(error as ClerkError, "Login");
     } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  };
-
-  const handleLogin = async () => {
-    if (!isLoaded || loading) return;
-    if (!email.trim() || !password) {
-      Alert.alert("Error", "Please fill in all fields");
-      return;
-    }
-
-    if (!isValidEmail(email.trim())) {
-      Alert.alert("Invalid Email", "Please enter a valid email address.");
-      return;
-    }
-
-    await attemptCredentialLogin(email, password, {
-      promptToSaveCredentials: true,
-    });
   };
 
   const onSocialAuth = async (provider: "google" | "facebook" | "apple") => {
@@ -293,57 +221,81 @@ export default function LoginScreen() {
         console.log("No session created, OAuth flow incomplete");
         Alert.alert("Info", "Please complete the authentication process");
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(`${provider} OAuth Error:`, err);
-      handleAuthError(err as ClerkError, `${provider} authentication`);
-    } finally {
-      if (isMountedRef.current) {
-        setLoading(false);
+
+      // Handle specific error cases
+      if (err.message?.includes("cancelled")) {
+        // User cancelled the flow, do nothing
+        console.log("User cancelled OAuth");
+      } else if (
+        err.errors?.[0]?.code === "session_exists" ||
+        err.message?.includes("session already exists")
+      ) {
+        Alert.alert(
+          "Session Already Exists",
+          "You already have an active session.",
+          [
+            {
+              text: "Go to Home",
+              onPress: () => router.replace("/(tabs)/home"),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ],
+        );
+      } else {
+        Alert.alert(
+          "Authentication Failed",
+          err.errors?.[0]?.message ||
+            err.message ||
+            `${provider} authentication failed. Please try again.`,
+        );
       }
+    } finally {
+      setLoading(false);
+      
     }
   };
 
-  const handleBiometricLogin = async () => {
+  const handleFaceIdLogin = async () => {
+    if (Platform.OS !== "ios") {
+      Alert.alert("Not Available", "Face ID is only available on iOS devices.");
+      return;
+    }
+
     try {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled = await LocalAuthentication.isEnrolledAsync();
 
       if (!hasHardware || !isEnrolled) {
-        Alert.alert(
-          "Biometric Login",
-          "Biometric authentication is not set up on this device.",
-        );
+        Alert.alert("Face ID", "Face ID is not set up on this device.");
         return;
       }
 
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Authenticate to login",
+        promptMessage: "Login with Face ID",
         fallbackLabel: "Use Passcode",
         cancelLabel: "Cancel",
-        disableDeviceFallback: false,
       });
 
       if (!result.success) {
         return;
       }
 
-      const storedEmail = await SecureStore.getItemAsync(BIOMETRIC_EMAIL_KEY);
-      const storedPassword = await SecureStore.getItemAsync(BIOMETRIC_PASSWORD_KEY);
-
-      if (!storedEmail || !storedPassword) {
-        Alert.alert(
-          "No Stored Credentials",
-          "Please log in with email and password first and enable biometric login.",
-        );
-        return;
-      }
-
-      await attemptCredentialLogin(storedEmail, storedPassword);
-    } catch (error: unknown) {
-      const err = error as ClerkError;
+      // Here you would typically retrieve stored credentials
+      // For now, show a message
       Alert.alert(
-        "Biometric Login Error",
-        err.message || "Biometric authentication failed. Please try again.",
+        "Face ID Authenticated",
+        "Please enter your email and password to complete login.",
+        [{ text: "OK" }],
+      );
+    } catch (error: any) {
+      Alert.alert(
+        "Face ID Error",
+        error.message || "Face ID failed. Please try again.",
       );
     }
   };
@@ -364,9 +316,6 @@ export default function LoginScreen() {
               router.replace("/(auth)/onboarding");
             }
           }}
-          accessibilityLabel="Go back"
-          accessibilityRole="button"
-          accessibilityHint="Returns to the previous screen"
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
@@ -428,8 +377,6 @@ export default function LoginScreen() {
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
-              accessibilityLabel={showPassword ? "Hide password" : "Show password"}
-              accessibilityRole="button"
             >
               <Ionicons
                 name={showPassword ? "eye-outline" : "eye-off-outline"}
@@ -452,8 +399,6 @@ export default function LoginScreen() {
             style={[styles.loginButton, loading && styles.buttonDisabled]}
             onPress={handleLogin}
             disabled={loading}
-            accessibilityLabel="Log in"
-            accessibilityRole="button"
           >
             <Text style={styles.loginButtonText}>
               {loading ? "Signing in..." : "Log in"}
@@ -463,13 +408,11 @@ export default function LoginScreen() {
           {/* Face ID Button */}
           <TouchableOpacity
             style={styles.faceIdButton}
-            onPress={handleBiometricLogin}
+            onPress={handleFaceIdLogin}
             disabled={loading}
-            accessibilityLabel="Use biometric login"
-            accessibilityRole="button"
           >
             <Ionicons name="scan-outline" size={22} color="#4560F7" />
-            <Text style={styles.faceIdText}>Use Biometric Login</Text>
+            <Text style={styles.faceIdText}>Use Face ID</Text>
           </TouchableOpacity>
 
           {/* Divider */}
