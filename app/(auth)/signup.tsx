@@ -51,30 +51,6 @@ const buildUsernameCandidates = (email?: string | null, fullName?: string) => {
   ].filter(Boolean);
 };
 
-const normalizeUsername = (value: string) =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 30);
-
-const buildUsernameCandidates = (email?: string | null, fullName?: string) => {
-  const emailPrefix = email?.split("@")[0] ?? "";
-  const namePrefix = fullName ?? "";
-
-  const base = normalizeUsername(namePrefix || emailPrefix || "user");
-
-  const nowSuffix = Date.now().toString().slice(-4);
-  const randomSuffix = Math.floor(100 + Math.random() * 900).toString();
-
-  return [
-    base,
-    normalizeUsername(`${base}_${nowSuffix}`),
-    normalizeUsername(`${base}_${randomSuffix}`),
-  ].filter(Boolean);
-};
-
 export default function SignupScreen() {
   useWarmUpBrowser();
 
