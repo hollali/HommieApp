@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useSignUp, useOAuth } from "@clerk/clerk-expo";
+import { useSignUp, useOAuth, useAuth } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Path } from "react-native-svg";
 import * as WebBrowser from "expo-web-browser";
@@ -27,6 +27,29 @@ export const useWarmUpBrowser = () => {
 };
 
 WebBrowser.maybeCompleteAuthSession();
+const normalizeUsername = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 30);
+
+const buildUsernameCandidates = (email?: string | null, fullName?: string) => {
+  const emailPrefix = email?.split("@")[0] ?? "";
+  const namePrefix = fullName ?? "";
+
+  const base = normalizeUsername(namePrefix || emailPrefix || "user");
+
+  const nowSuffix = Date.now().toString().slice(-4);
+  const randomSuffix = Math.floor(100 + Math.random() * 900).toString();
+
+  return [
+    base,
+    normalizeUsername(`${base}_${nowSuffix}`),
+    normalizeUsername(`${base}_${randomSuffix}`),
+  ].filter(Boolean);
+};
 
 const normalizeUsername = (value: string) =>
   value
@@ -56,6 +79,7 @@ export default function SignupScreen() {
   useWarmUpBrowser();
 
   const { isLoaded, signUp } = useSignUp();
+  const { isSignedIn } = useAuth();
 
   // Initialize OAuth hooks
   const { startOAuthFlow: googleOAuth } = useOAuth({
@@ -77,6 +101,12 @@ export default function SignupScreen() {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    if (isSignedIn) {
+      router.replace("/(tabs)/home");
+    }
+  }, [isSignedIn, router]);
 
   const handleSignup = async () => {
     if (!isLoaded) return;
@@ -124,6 +154,19 @@ export default function SignupScreen() {
   };
 
   const onSocialAuth = async (provider: "google" | "facebook" | "apple") => {
+    if (isSignedIn) {
+      Alert.alert("Already Signed In", "You already have an active session.", [
+        {
+          text: "Go to Home",
+          onPress: () => router.replace("/(tabs)/home"),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]);
+      return;
+    }
     /*if (!agreedToTerms) {
       Alert.alert("Error", "Please agree to the Terms & Conditions");
       return;
@@ -228,6 +271,25 @@ export default function SignupScreen() {
       if (err.message?.includes("cancelled")) {
         // User cancelled the flow, do nothing
         console.log("User cancelled OAuth");
+      } else if (
+        err.errors?.[0]?.code === "session_exists" ||
+        err.message?.includes("already signed in") ||
+        err.message?.includes("session already exists")
+      ) {
+        Alert.alert(
+          "Session Already Exists",
+          "You already have an active session.",
+          [
+            {
+              text: "Go to Home",
+              onPress: () => router.replace("/(tabs)/home"),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ],
+        );
       } else {
         Alert.alert(
           "Authentication Failed",

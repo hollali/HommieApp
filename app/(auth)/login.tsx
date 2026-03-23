@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -17,7 +17,13 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
-export const useWarmUpBrowser = () => {
+interface ClerkError {
+  errors?: { code?: string; message?: string }[];
+  message?: string;
+  code?: string;
+}
+
+const useWarmUpBrowser = () => {
   useEffect(() => {
     void WebBrowser.warmUpAsync();
     return () => {
@@ -29,7 +35,7 @@ export const useWarmUpBrowser = () => {
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
-  useWarmUpBrowser();
+  //useWarmUpBrowser();
 
   const { signIn, setActive, isLoaded } = useSignIn();
   const { isSignedIn } = useAuth();
@@ -153,6 +159,7 @@ export default function LoginScreen() {
         createdSessionId,
         setActive: setActiveSession,
         signIn: oauthSignIn,
+        signUp: oauthSignUp,
       } = await startOAuthFlow({
         redirectUrl,
       });
@@ -160,6 +167,7 @@ export default function LoginScreen() {
       console.log("OAuth Result:", {
         createdSessionId: !!createdSessionId,
         signInStatus: oauthSignIn?.status,
+        signUpStatus: oauthSignUp?.status,
       });
 
       if (createdSessionId) {
@@ -177,11 +185,38 @@ export default function LoginScreen() {
           oauthSignIn.status === "needs_second_factor"
         ) {
           // Handle cases where additional verification is needed
+          // Account may not exist yet, direct user to sign-up flow.
           Alert.alert(
-            "Additional Verification Required",
-            "Please check your email for verification instructions.",
+            "Account Setup Required",
+            "We couldn't complete sign in. Please continue with Sign Up to finish creating your account.",
+            [
+              {
+                text: "Go to Sign Up",
+                onPress: () => router.push("/(auth)/signup"),
+              },
+              {
+                text: "Cancel",
+                style: "cancel",
+              },
+            ],
           );
         }
+      } else if (oauthSignUp) {
+        // OAuth can initialize as sign-up if no existing account is found.
+        Alert.alert(
+          "No Account Found",
+          "This Google account isn't linked yet. Please sign up to continue.",
+          [
+            {
+              text: "Go to Sign Up",
+              onPress: () => router.push("/(auth)/signup"),
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+            },
+          ],
+        );
       } else {
         console.log("No session created, OAuth flow incomplete");
         Alert.alert("Info", "Please complete the authentication process");
@@ -221,6 +256,7 @@ export default function LoginScreen() {
       }
     } finally {
       setLoading(false);
+      
     }
   };
 
