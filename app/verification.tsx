@@ -10,21 +10,35 @@ import { verificationService } from '../lib/verificationService';
 
 export default function VerificationScreen() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
   const [verificationStatus, setVerificationStatus] = useState<'pending' | 'verified' | 'unverified' | 'not_started'>('not_started');
   const [uploading, setUploading] = useState(false);
   const [documentsCount, setDocumentsCount] = useState(0);
 
   useEffect(() => {
     if (!user) return;
-    
-    verificationService.getVerificationStatus(user.id).then((status) => {
-      if (status) {
-        setVerificationStatus(status.verification_status as any);
-        setDocumentsCount(status.verification_documents?.length || 0);
+
+    let isCancelled = false;
+    (async () => {
+      try {
+        const token = await getToken({ template: 'supabase' });
+        const status = await verificationService.getVerificationStatus(user.id, token);
+        if (isCancelled) return;
+
+        if (status) {
+          setVerificationStatus(status.verification_status as any);
+          setDocumentsCount(status.verification_documents?.length || 0);
+        }
+      } catch (e) {
+        // Non-fatal: we can still render the screen with default status.
+        console.error('Failed to load verification status:', e);
       }
-    });
-  }, [user]);
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [user, getToken]);
 
   const handleStartVerification = () => {
     startVerificationFlow();
@@ -54,7 +68,8 @@ export default function VerificationScreen() {
       const documents = result.assets.map((asset) => asset.uri);
       
       if (user) {
-        await verificationService.submitVerification(user.id, documents);
+        const token = await getToken({ template: 'supabase' });
+        await verificationService.submitVerification(user.id, documents, token);
         setDocumentsCount(Math.min(3, documents.length));
         setVerificationStatus('pending');
       }

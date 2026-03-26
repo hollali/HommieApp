@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -17,26 +17,9 @@ import * as LocalAuthentication from "expo-local-authentication";
 import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 
-interface ClerkError {
-  errors?: { code?: string; message?: string }[];
-  message?: string;
-  code?: string;
-}
-
-const useWarmUpBrowser = () => {
-  useEffect(() => {
-    void WebBrowser.warmUpAsync();
-    return () => {
-      void WebBrowser.coolDownAsync();
-    };
-  }, []);
-};
-
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
-  //useWarmUpBrowser();
-
   const { signIn, setActive, isLoaded } = useSignIn();
   const { isSignedIn } = useAuth();
   const { startOAuthFlow: googleOAuth } = useOAuth({

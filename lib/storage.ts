@@ -9,7 +9,12 @@ export const storageService = {
    * @param path The path within the bucket
    * @param uri The local file URI
    */
-  async uploadImage(bucket: string, path: string, uri: string): Promise<string | null> {
+  async uploadImage(
+    bucket: string,
+    path: string,
+    uri: string,
+    supabaseClient: any = supabase
+  ): Promise<string | null> {
     if (!isSupabaseConfigured) return null;
 
     try {
@@ -21,7 +26,7 @@ export const storageService = {
       const fileName = `${path}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await supabaseClient.storage
         .from(bucket)
         .upload(filePath, decode(base64), {
           contentType: `image/${fileExt}`,
@@ -33,7 +38,7 @@ export const storageService = {
         return null;
       }
 
-      const { data: publicUrlData } = supabase.storage
+      const { data: publicUrlData } = supabaseClient.storage
         .from(bucket)
         .getPublicUrl(data.path);
 
